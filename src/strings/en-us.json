@@ -1989,5 +1989,10 @@
     "SubtitleLanguages": "Subtitle languages",
     "VideoToolsStatusCanceled": "Canceled",
     "VideoToolsPlayOutput": "Play output",
-    "VideoToolsCanceledToast": "Task canceled."
+    "VideoToolsCanceledToast": "Task canceled.",
+    "VideoToolsRotation": "Rotation",
+    "VideoToolsRotationNone": "0° (no rotation)",
+    "VideoToolsRotation90": "90° clockwise",
+    "VideoToolsRotation180": "180°",
+    "VideoToolsRotation270": "270° clockwise"
 }

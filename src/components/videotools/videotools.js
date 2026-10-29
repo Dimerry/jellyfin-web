@@ -160,6 +160,15 @@ export function showCut(options) {
                     <label class="inputLabel inputLabelUnfocused" for="txtEndTrim">${globalize.translate('VideoToolsEndTrim')}</label>
                     <input is="emby-input" type="number" id="txtEndTrim" min="0" step="0.1" value="0" />
                 </div>
+                <div class="selectContainer">
+                    <label class="selectLabel" for="selectRotation">${globalize.translate('VideoToolsRotation')}</label>
+                    <select is="emby-select" id="selectRotation" class="emby-select-withcolor emby-select">
+                        <option value="0" selected>${globalize.translate('VideoToolsRotationNone')}</option>
+                        <option value="90">${globalize.translate('VideoToolsRotation90')}</option>
+                        <option value="180">${globalize.translate('VideoToolsRotation180')}</option>
+                        <option value="270">${globalize.translate('VideoToolsRotation270')}</option>
+                    </select>
+                </div>
                 <div class="fieldDescription">${globalize.translate('VideoToolsCutHint')}</div>
                 <div style="margin-top:2em;">
                     <button is="emby-button" type="button" class="button-cancel block btnCancel" style="background-color:#424242;color:#ffffff;">${globalize.translate('ButtonCancel')}</button>
@@ -175,6 +184,7 @@ export function showCut(options) {
 
             const startSeconds = Number(dlg.querySelector('#txtStartTrim').value || 0);
             const endSeconds = Number(dlg.querySelector('#txtEndTrim').value || 0);
+            const rotation = Number(dlg.querySelector('#selectRotation').value || 0);
 
             if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)
                 || startSeconds < 0 || endSeconds < 0) {
@@ -193,7 +203,8 @@ export function showCut(options) {
                 apiClient,
                 apiClient.getUrl(`VideoTools/${options.itemId}/Cut`, {
                     startSeconds: startSeconds,
-                    endSeconds: endSeconds
+                    endSeconds: endSeconds,
+                    rotation: rotation
                 }),
                 globalize.translate('VideoToolsStarted')
             ).then(resolve, (err) => {

@@ -1989,5 +1989,10 @@
     "MessageItemMetadataLocked": "此项目的元数据已被锁定。请先解锁，然后再使用刮削功能。",
     "VideoToolsStatusCanceled": "已取消",
     "VideoToolsPlayOutput": "播放新文件",
-    "VideoToolsCanceledToast": "任务已取消。"
+    "VideoToolsCanceledToast": "任务已取消。",
+    "VideoToolsRotation": "旋转",
+    "VideoToolsRotationNone": "不旋转 (0°)",
+    "VideoToolsRotation90": "顺时针 90°",
+    "VideoToolsRotation180": "180°",
+    "VideoToolsRotation270": "顺时针 270°"
 }
