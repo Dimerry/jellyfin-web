@@ -29,7 +29,9 @@ const collectionMovieOptions: SortOption[] = [
     { label: 'OptionCommunityRating', value: [ItemSortBy.CommunityRating, ItemSortBy.SortName] },
     { label: 'OptionDateAdded', value: [ItemSortBy.DateCreated, ItemSortBy.SortName] },
     { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
-    { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] }
+    { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
 ];
 
 const movieOrFavoriteOptions = [
@@ -42,7 +44,9 @@ const movieOrFavoriteOptions = [
     { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
     { label: 'OptionPlayCount', value: [ItemSortBy.PlayCount, ItemSortBy.SortName] },
     { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] },
-    { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] }
+    { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
 ];
 
 const photosOrPhotoAlbumsOptions = [
@@ -60,7 +64,9 @@ const videoOrMusicVideoOptions = [
     { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
     { label: 'OptionPlayCount', value: [ItemSortBy.PlayCount, ItemSortBy.SortName] },
     { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] },
-    { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] }
+    { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
 ];
 
 const sortOptionsMapping: SortOptionsMapping = {
@@ -86,7 +92,9 @@ const sortOptionsMapping: SortOptionsMapping = {
         { label: 'OptionDatePlayed', value: [ItemSortBy.DatePlayed, ItemSortBy.SortName] },
         { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
         { label: 'OptionPlayCount', value: [ItemSortBy.PlayCount, ItemSortBy.SortName] },
-        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] }
+        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
     ],
     [LibraryTab.Albums]: [
         { label: 'Name', value: [ItemSortBy.SortName] },
@@ -139,7 +147,9 @@ const sortOptionsMapping: SortOptionsMapping = {
         { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
         { label: 'OptionPlayCount', value: [ItemSortBy.PlayCount, ItemSortBy.SortName] },
         { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] },
-        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] }
+        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
     ],
     [LibraryTab.Mixed]: [
         { label: 'Name', value: [ItemSortBy.SortName] },
@@ -152,7 +162,9 @@ const sortOptionsMapping: SortOptionsMapping = {
         { label: 'OptionParentalRating', value: [ItemSortBy.OfficialRating, ItemSortBy.SortName] },
         { label: 'OptionPlayCount', value: [ItemSortBy.PlayCount, ItemSortBy.SortName] },
         { label: 'OptionReleaseDate', value: [ItemSortBy.ProductionYear, ItemSortBy.PremiereDate, ItemSortBy.SortName] },
-        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] }
+        { label: 'Runtime', value: [ItemSortBy.Runtime, ItemSortBy.SortName] },
+    { label: 'LabelBitrate', value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName] },
+    { label: 'LabelFileSize', value: ['Size' as ItemSortBy, ItemSortBy.SortName] }
     ]
 };
 
