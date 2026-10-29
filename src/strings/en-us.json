@@ -1990,9 +1990,9 @@
     "VideoToolsStatusCanceled": "Canceled",
     "VideoToolsPlayOutput": "Play output",
     "VideoToolsCanceledToast": "Task canceled.",
-    "VideoToolsRotation": "Rotation",
+    "VideoToolsRotation": "Rotation (counter-clockwise)",
     "VideoToolsRotationNone": "0° (no rotation)",
-    "VideoToolsRotation90": "90° clockwise",
+    "VideoToolsRotation90": "90° counter-clockwise",
     "VideoToolsRotation180": "180°",
-    "VideoToolsRotation270": "270° clockwise"
+    "VideoToolsRotation270": "270° counter-clockwise"
 }

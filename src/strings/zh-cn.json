@@ -1990,9 +1990,9 @@
     "VideoToolsStatusCanceled": "已取消",
     "VideoToolsPlayOutput": "播放新文件",
     "VideoToolsCanceledToast": "任务已取消。",
-    "VideoToolsRotation": "旋转",
+    "VideoToolsRotation": "旋转（逆时针）",
     "VideoToolsRotationNone": "不旋转 (0°)",
-    "VideoToolsRotation90": "顺时针 90°",
+    "VideoToolsRotation90": "逆时针 90°",
     "VideoToolsRotation180": "180°",
-    "VideoToolsRotation270": "顺时针 270°"
+    "VideoToolsRotation270": "逆时针 270°"
 }
