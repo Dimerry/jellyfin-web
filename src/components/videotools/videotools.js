@@ -74,7 +74,12 @@ function startJob(apiClient, url, successMessage) {
 export function showTranscode(options) {
     return new Promise((resolve) => {
         const apiClient = ServerConnections.getApiClient(options.serverId);
-        const dlg = createDialog(globalize.translate('Transcode'));
+        const itemIds = options.itemIds && options.itemIds.length ? options.itemIds : [options.itemId];
+        const isBatch = itemIds.length > 1;
+        const title = isBatch ?
+            `${globalize.translate('Transcode')} (${itemIds.length})` :
+            globalize.translate('Transcode');
+        const dlg = createDialog(title);
 
         dlg.innerHTML += globalize.translateHtml(`
             <form class="formDialogContent" style="padding:1.5em 2em;">
@@ -96,6 +101,7 @@ export function showTranscode(options) {
                     <label class="inputLabel inputLabelUnfocused" for="txtBitrate">${globalize.translate('VideoToolsBitrate')}</label>
                     <input is="emby-input" type="number" id="txtBitrate" min="100" max="200000" step="100" value="3000" />
                 </div>
+                ${isBatch ? `<div class="fieldDescription">${globalize.translate('VideoToolsBatchHint', itemIds.length)}</div>` : ''}
                 <div class="fieldDescription">${globalize.translate('VideoToolsTranscodeHint')}</div>
                 <div style="margin-top:2em;">
                     <button is="emby-button" type="button" class="button-cancel block btnCancel" style="background-color:#424242;color:#ffffff;">${globalize.translate('ButtonCancel')}</button>
@@ -120,13 +126,37 @@ export function showTranscode(options) {
 
             dialogHelper.close(dlg);
 
+            const params = {
+                codec: codec,
+                bitrateKbps: Math.round(bitrate),
+                resolution: resolution
+            };
+
+            if (isBatch) {
+                apiClient.ajax({
+                    type: 'POST',
+                    url: apiClient.getUrl('VideoTools/Transcode', params),
+                    data: JSON.stringify(itemIds),
+                    contentType: 'application/json',
+                    dataType: 'json'
+                }).then((result) => {
+                    const added = result?.Added || 0;
+                    const skipped = result?.Skipped || 0;
+                    toast(skipped > 0 ?
+                        globalize.translate('VideoToolsBatchQueuedSkipped', added, skipped) :
+                        globalize.translate('VideoToolsBatchQueued', added));
+                    resolve(result);
+                }, (err) => {
+                    console.error('[videotools] batch transcode failed', err);
+                    toast(globalize.translate('VideoToolsRequestFailed'));
+                    resolve();
+                });
+                return;
+            }
+
             startJob(
                 apiClient,
-                apiClient.getUrl(`VideoTools/${options.itemId}/Transcode`, {
-                    codec: codec,
-                    bitrateKbps: Math.round(bitrate),
-                    resolution: resolution
-                }),
+                apiClient.getUrl(`VideoTools/${options.itemId}/Transcode`, params),
                 globalize.translate('VideoToolsStarted')
             ).then(resolve, (err) => {
                 console.error('[videotools] transcode failed', err);
@@ -145,9 +175,9 @@ export function showCut(options) {
         const duration = options.durationTicks ? options.durationTicks / 10000000 : 0;
         const dlg = createDialog(globalize.translate('CutVideo'));
 
-        const durationText = duration > 0
-            ? globalize.translate('VideoToolsDuration', Math.round(duration))
-            : '';
+        const durationText = duration > 0 ?
+            globalize.translate('VideoToolsDuration', Math.round(duration)) :
+            '';
 
         dlg.innerHTML += globalize.translateHtml(`
             <form class="formDialogContent" style="padding:1.5em 2em;">

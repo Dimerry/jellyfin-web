@@ -194,6 +194,9 @@ function showMenuForSelectedItems(e) {
             const selectedItemObjects = (listResult && listResult.Items) || [];
             const onlyImages = selectedItemObjects.length === selectedItems.length
                 && selectedItemObjects.every(i => i.Type === 'Photo');
+            const videoTypes = ['Movie', 'Episode', 'Video', 'MusicVideo'];
+            const onlyVideos = selectedItemObjects.length === selectedItems.length
+                && selectedItemObjects.every(i => videoTypes.includes(i.Type));
             const menuItems = [];
 
             menuItems.push({
@@ -248,6 +251,14 @@ function showMenuForSelectedItems(e) {
                     name: globalize.translate('RotateImageLeft'),
                     id: 'rotateimage',
                     icon: 'rotate_left'
+                });
+            }
+
+            if (user.Policy.IsAdministrator && onlyVideos) {
+                menuItems.push({
+                    name: globalize.translate('VideoToolsTranscodeSelected', selectedItems.length),
+                    id: 'transcode',
+                    icon: 'sync'
                 });
             }
 
@@ -317,6 +328,16 @@ function showMenuForSelectedItems(e) {
                                     });
                                 }).catch(err => {
                                     console.error('[AddToPlaylist] failed to load playlist editor', err);
+                                });
+                                hideSelections();
+                                dispatchNeedsRefresh();
+                                break;
+                            case 'transcode':
+                                import('../videotools/videotools').then(({ showTranscode }) => {
+                                    showTranscode({
+                                        itemIds: items,
+                                        serverId: serverId
+                                    });
                                 });
                                 hideSelections();
                                 dispatchNeedsRefresh();
