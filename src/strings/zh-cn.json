@@ -896,7 +896,7 @@
     "VideoToolsRequestFailed": "无法启动任务。",
     "VideoToolsStartTrim": "开头剪掉（秒）",
     "VideoToolsStarted": "任务已开始，完成后会保存在源文件同目录。",
-    "VideoToolsTranscodeHint": "新文件保存到源文件同目录，直接沿用原文件名（MP4 容器，不再带编码后缀），原文件自动改名为 &lt;原文件名&gt;.old 保留。超过所选分辨率的视频会缩小，较小的视频不会放大。H.265 使用 Intel QSV 硬件加速；UHD 770 不支持 AV1 硬件编码，AV1 为软件编码、速度较慢。",
+    "VideoToolsTranscodeHint": "新文件保存到源文件同目录，直接沿用原文件名（MP4 容器，不再带编码后缀），原文件自动改名为 &lt;原文件名&gt;.old&lt;扩展名&gt; 保留。超过所选分辨率的视频会缩小，较小的视频不会放大。H.265 使用 Intel QSV 硬件加速；UHD 770 不支持 AV1 硬件编码，AV1 为软件编码、速度较慢。",
     "VideoToolsTrimTooLong": "剪掉的时长超过了视频总长度。",
     "VideoToolsFileName": "文件名",
     "VideoToolsFolderName": "文件夹名",
