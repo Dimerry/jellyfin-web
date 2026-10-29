@@ -233,6 +233,18 @@ function renderTrackSelections(page, instance, item, forceReload) {
     }
 }
 
+function getBitrateText(bitrate) {
+    if (!bitrate) {
+        return null;
+    }
+
+    if (bitrate >= 1000000) {
+        return `${(bitrate / 1000000).toFixed(1)} Mbps`;
+    }
+
+    return `${Math.round(bitrate / 1000)} kbps`;
+}
+
 function renderVideoSelections(page, mediaSources) {
     const mediaSource = getSelectedMediaSource(page, mediaSources);
 
@@ -256,7 +268,20 @@ function renderVideoSelections(page, mediaSources) {
             titleParts.push(v.Codec.toUpperCase());
         }
 
-        return `<option value="${v.Index}" ${selected}>${escapeHtml(v.DisplayTitle || titleParts.join(' '))}</option>`;
+        const bitrateText = getBitrateText(v.BitRate);
+
+        if (bitrateText) {
+            titleParts.push(bitrateText);
+        }
+
+        // DisplayTitle is provided by the server and lacks the bitrate, so append it when present
+        let title = v.DisplayTitle || titleParts.join(' ');
+
+        if (v.DisplayTitle && bitrateText) {
+            title += ` · ${bitrateText}`;
+        }
+
+        return `<option value="${v.Index}" ${selected}>${escapeHtml(title)}</option>`;
     }).join('');
     select.setAttribute('disabled', 'disabled');
 
@@ -279,7 +304,11 @@ function renderAudioSelections(page, mediaSources) {
     const selectedId = mediaSource.DefaultAudioStreamIndex;
     select.innerHTML = tracks.map(function (v) {
         const selected = v.Index === selectedId ? ' selected' : '';
-        return `<option value="${v.Index}" ${selected}>${escapeHtml(v.DisplayTitle)}</option>`;
+        const bitrateText = getBitrateText(v.BitRate);
+        const title = v.DisplayTitle || v.Codec?.toUpperCase() || '';
+        const titleWithBitrate = bitrateText ? `${title} · ${bitrateText}` : title;
+
+        return `<option value="${v.Index}" ${selected}>${escapeHtml(titleWithBitrate)}</option>`;
     }).join('');
 
     if (tracks.length > 1) {
