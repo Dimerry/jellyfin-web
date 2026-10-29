@@ -64,6 +64,11 @@ function canRenameItem(item) {
     return Boolean(item.IsFolder || item.MediaType === 'Video' || item.MediaType === 'Audio');
 }
 
+/** Images can be rotated in place (counter-clockwise, 90°) by an administrator. */
+function canRotateItem(item) {
+    return item.Type === 'Photo';
+}
+
 export async function getCommands(options) {
     const item = options.item;
     const user = options.user;
@@ -235,6 +240,14 @@ export async function getCommands(options) {
             name: globalize.translate('ButtonRename'),
             id: 'rename',
             icon: 'drive_file_rename_outline'
+        });
+    }
+
+    if (user.Policy.IsAdministrator && canRotateItem(item)) {
+        commands.push({
+            name: globalize.translate('RotateImageLeft'),
+            id: 'rotateimage',
+            icon: 'rotate_left'
         });
     }
 
@@ -584,6 +597,21 @@ function executeCommand(item, id, options) {
                         itemName: item.Name
                     }).then(getResolveFunction(resolve, id), getResolveFunction(resolve, id));
                 });
+                break;
+            case 'rotateimage':
+                apiClient.ajax({
+                    type: 'POST',
+                    url: apiClient.getUrl(`ImageTools/${itemId}/Rotate`, { degrees: 90 }),
+                    dataType: 'json'
+                }).then(result => {
+                    if (result && result.Success === false) {
+                        toast(globalize.translate('RotateImageFailed'));
+                    } else {
+                        toast(globalize.translate('RotateImageSuccess'));
+                    }
+                }, () => {
+                    toast(globalize.translate('RotateImageFailed'));
+                }).then(getResolveFunction(resolve, id, true), getResolveFunction(resolve, id));
                 break;
             case 'rename':
                 import('./renameitem/renameitem').then(({ showRename }) => {

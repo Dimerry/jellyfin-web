@@ -12,6 +12,7 @@ import globalize from '../../lib/globalize';
 import dom from '../../utils/dom';
 import './multiSelect.scss';
 import alert from '../alert';
+import toast from '../toast/toast';
 import confirm from '../confirm/confirm';
 import itemHelper from '../itemHelper';
 import datetime from '../../scripts/datetime';
@@ -186,7 +187,13 @@ function showMenuForSelectedItems(e) {
 
     apiClient.getCurrentUser().then(user => {
         // get first selected item to perform metadata refresh permission check
-        apiClient.getItem(apiClient.getCurrentUserId(), selectedItems[0]).then(firstItem => {
+        Promise.all([
+            apiClient.getItem(apiClient.getCurrentUserId(), selectedItems[0]),
+            apiClient.getItems(apiClient.getCurrentUserId(), { Ids: selectedItems })
+        ]).then(([firstItem, listResult]) => {
+            const selectedItemObjects = (listResult && listResult.Items) || [];
+            const onlyImages = selectedItemObjects.length === selectedItems.length
+                && selectedItemObjects.every(i => i.Type === 'Photo');
             const menuItems = [];
 
             menuItems.push({
@@ -233,6 +240,14 @@ function showMenuForSelectedItems(e) {
                     name: globalize.translate('GroupVersions'),
                     id: 'groupvideos',
                     icon: 'call_merge'
+                });
+            }
+
+            if (user.Policy.IsAdministrator && onlyImages) {
+                menuItems.push({
+                    name: globalize.translate('RotateImageLeft'),
+                    id: 'rotateimage',
+                    icon: 'rotate_left'
                 });
             }
 
@@ -302,6 +317,27 @@ function showMenuForSelectedItems(e) {
                                     });
                                 }).catch(err => {
                                     console.error('[AddToPlaylist] failed to load playlist editor', err);
+                                });
+                                hideSelections();
+                                dispatchNeedsRefresh();
+                                break;
+                            case 'rotateimage':
+                                apiClient.ajax({
+                                    type: 'POST',
+                                    url: apiClient.getUrl('ImageTools/Rotate', { degrees: 90 }),
+                                    data: JSON.stringify(selectedItems),
+                                    contentType: 'application/json',
+                                    dataType: 'json'
+                                }).then(results => {
+                                    const list = results || [];
+                                    const failed = list.filter(r => !r.Success).length;
+                                    if (failed > 0) {
+                                        toast(globalize.translate('RotateImageFailedCount', failed, list.length - failed));
+                                    } else {
+                                        toast(globalize.translate('RotateImageSuccessCount', list.length));
+                                    }
+                                }, () => {
+                                    toast(globalize.translate('RotateImageFailed'));
                                 });
                                 hideSelections();
                                 dispatchNeedsRefresh();
