@@ -24,6 +24,7 @@ let shiftAnchor = null;
 let paintSession = null;
 let pendingPointer = null;
 let paintSuppressClickUntil = 0;
+let selectionOwner = null;
 
 function hideSelections() {
     const selectionCommandsPanel = currentSelectionCommandsPanel;
@@ -36,6 +37,9 @@ function hideSelections() {
         selectedItems = [];
         selectedElements = [];
         shiftAnchor = null;
+        paintSession = null;
+        pendingPointer = null;
+        selectionOwner = null;
         document.body.classList.remove('multiSelectActive');
         const elems = document.querySelectorAll('.itemSelectionPanel');
         for (let i = 0, length = elems.length; i < length; i++) {
@@ -668,6 +672,10 @@ function combineVersions(apiClient, selection) {
 }
 
 function showSelections(initialCard, addInitialCheck) {
+    selectionOwner = initialCard?.closest?.('[is="emby-itemscontainer"]')
+        || initialCard?.parentElement
+        || null;
+
     import('../../elements/emby-checkbox/emby-checkbox').then(() => {
         const cards = document.querySelectorAll('.card');
         for (let i = 0, length = cards.length; i < length; i++) {
@@ -885,6 +893,12 @@ export default function (options) {
     self.onContainerClick = onContainerClick;
 
     self.destroy = () => {
+        // Leaving the view drops the selection: a stale selection keeps the top bar around and
+        // makes the next view's cards (folders included) toggle a checkbox instead of opening.
+        if (!selectionOwner || selectionOwner === container || !selectionOwner.isConnected) {
+            hideSelections();
+        }
+
         container.removeEventListener('click', onContainerClick);
         container.removeEventListener('contextmenu', onTapHold);
 

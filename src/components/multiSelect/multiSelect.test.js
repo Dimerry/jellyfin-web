@@ -26,6 +26,7 @@ vi.mock('../../elements/emby-checkbox/emby-checkbox', () => ({}));
 let MultiSelect;
 let startMultiSelect;
 let stopMultiSelect;
+let lastInstance = null;
 
 describe('multiSelect range and paint selection', () => {
     let cards;
@@ -51,7 +52,8 @@ describe('multiSelect range and paint selection', () => {
             cards.push(card);
         }
 
-        new MultiSelect({ container: container, bindOnClick: true });
+        const instance = new MultiSelect({ container: container, bindOnClick: true });
+        lastInstance = instance;
         return container;
     }
 
@@ -156,6 +158,33 @@ describe('multiSelect range and paint selection', () => {
 
         expect(checkedIndexes()).toEqual([0, 3]);
         pointer('pointerup', 0, 60, 12);
+        stopMultiSelect();
+    });
+
+    test('destroying the container clears the selection', async () => {
+        buildDom(3);
+        startMultiSelect(cards[1]);
+        await flush();
+
+        expect(checkedIndexes()).toEqual([1]);
+
+        lastInstance.destroy();
+
+        expect(document.querySelector('.itemSelectionPanel')).toBeNull();
+        expect(document.querySelector('.itemSelectionCount')).toBeNull();
+    });
+
+    test('destroying another container keeps the selection', async () => {
+        buildDom(3);
+        startMultiSelect(cards[1]);
+        await flush();
+
+        const other = document.createElement('div');
+        document.body.appendChild(other);
+        const otherInstance = new MultiSelect({ container: other, bindOnClick: true });
+        otherInstance.destroy();
+
+        expect(checkedIndexes()).toEqual([1]);
         stopMultiSelect();
     });
 
