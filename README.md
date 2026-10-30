@@ -3,7 +3,7 @@
 > **这是 [jellyfin/jellyfin-web](https://github.com/jellyfin/jellyfin-web) 的个人 fork，不是官方版本。**
 > 所有改动都在 `videotools` 分支上，配套服务端：[Dimerry/jellyfin](https://github.com/Dimerry/jellyfin)（也不过是给上游加了 `/VideoTools` 接口）。
 
-一句话概括：让 Jellyfin 网页版能**右键直接转码 / 剪辑视频**，带**任务队列页面**、**剪辑实时预览**、**拖动多选**、**按文件大小排序**。
+一句话概括：让 Jellyfin 网页版能**直接转码压缩 / 掐头去尾（带预览）**，带**任务队列页面**、**触屏拖动多选、web shift多选**、**按文件大小、比特率排序**。
 
 > 🤖 **本仓库全部代码由 AI 编写。**
 > 作者是一位看不懂代码的天才程序员——需求、交互、审美和验收是他，敲键盘的是 AI。
