@@ -127,6 +127,38 @@ describe('multiSelect range and paint selection', () => {
         stopMultiSelect();
     });
 
+    test('long pressing another card while selecting keeps marks and count in sync', async () => {
+        buildDom(4);
+        startMultiSelect(cards[0]);
+        await flush();
+
+        startMultiSelect(cards[2]);
+        await flush();
+
+        expect(checkedIndexes()).toEqual([0, 2]);
+        expect(document.querySelector('.itemSelectionCount').innerHTML).toBe('2');
+        stopMultiSelect();
+    });
+
+    test('the long press gesture keeps painting after selection mode starts', async () => {
+        buildDom(5);
+
+        // Finger goes down before selection mode exists...
+        pointer('pointerdown', 0, 10, 10);
+        document.elementFromPoint = () => cards[3].querySelector('.cardBox');
+
+        // ...the long press timer enters selection mode while the finger is still down...
+        startMultiSelect(cards[0]);
+        await flush();
+
+        // ...and the rest of the gesture paints.
+        pointer('pointermove', 0, 60, 12);
+
+        expect(checkedIndexes()).toEqual([0, 3]);
+        pointer('pointerup', 0, 60, 12);
+        stopMultiSelect();
+    });
+
     test('dragging across cards paints the same state', async () => {
         buildDom(5);
         startMultiSelect(cards[1]);

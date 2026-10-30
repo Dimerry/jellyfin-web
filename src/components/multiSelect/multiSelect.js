@@ -22,6 +22,7 @@ let selectedElements = [];
 let currentSelectionCommandsPanel;
 let shiftAnchor = null;
 let paintSession = null;
+let pendingPointer = null;
 let paintSuppressClickUntil = 0;
 
 function hideSelections() {
@@ -34,6 +35,8 @@ function hideSelections() {
 
         selectedItems = [];
         selectedElements = [];
+        shiftAnchor = null;
+        document.body.classList.remove('multiSelectActive');
         const elems = document.querySelectorAll('.itemSelectionPanel');
         for (let i = 0, length = elems.length; i < length; i++) {
             const parent = elems[i].parentNode;
@@ -65,6 +68,18 @@ function onItemSelectionPanelClick(e, itemSelectionPanel) {
 }
 
 function updateItemSelection(chkItemSelect, selected) {
+    // showSelections() passes the card, clicks pass the checkbox: normalise to the checkbox so the
+    // visual check mark and the counter never disagree.
+    let element = chkItemSelect;
+    if (element && element.tagName !== 'INPUT') {
+        const checkbox = element.querySelector('.chkItemSelect');
+        if (checkbox) {
+            element = checkbox;
+            element.checked = selected;
+        }
+    }
+    chkItemSelect = element;
+
     const parentWithId = dom.parentWithAttribute(chkItemSelect, 'data-id');
 
     // If the element doesn't have a parent with data-id, it's not a valid item
@@ -102,10 +117,7 @@ function updateItemSelection(chkItemSelect, selected) {
     }
 
     if (chkItemSelect.isConnected) {
-        // showSelections() passes the card, clicks pass the checkbox: normalise to the checkbox.
-        shiftAnchor = chkItemSelect.querySelector ?
-            (chkItemSelect.querySelector('.chkItemSelect') || chkItemSelect) :
-            chkItemSelect;
+        shiftAnchor = chkItemSelect;
     }
 }
 
@@ -164,19 +176,38 @@ function setCardChecked(card, checked) {
 
 /**
  * Starts a drag paint gesture when the pointer goes down on a card in selection mode.
- * Moving horizontally over other cards selects (or deselects) them like a brush.
+ * Moving over other cards selects (or deselects) them like a brush.
  * A mostly vertical touch swipe is left alone so the grid can still be scrolled.
  */
 function onPaintPointerDown(e) {
     paintSession = null;
     paintSuppressClickUntil = 0;
+    pendingPointer = null;
 
-    if (!isMultiSelectActive() || (e.pointerType === 'mouse' && e.button !== 0)) {
+    if (e.pointerType === 'mouse' && e.button !== 0) {
         return;
     }
 
     const card = dom.parentWithClass(e.target, 'card');
-    if (!card || dom.parentWithClass(e.target, 'itemSelectionPanel')) {
+    if (!card) {
+        return;
+    }
+
+    pendingPointer = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        card: card,
+        startX: e.clientX,
+        startY: e.clientY
+    };
+
+    if (!isMultiSelectActive()) {
+        // The long press that enters selection mode may turn this same gesture into a paint one.
+        return;
+    }
+
+    // The checkbox itself keeps its normal toggle behaviour.
+    if (dom.parentWithClass(e.target, 'checkboxContainer')) {
         return;
     }
 
@@ -196,6 +227,30 @@ function onPaintPointerDown(e) {
     };
 }
 
+/**
+ * A long press entered selection mode while the finger/mouse is still down: continue that
+ * gesture as a paint stroke instead of dropping it.
+ * @param {HTMLElement} card The card that was long pressed.
+ */
+function startPaintFromPendingPointer(card) {
+    const pending = pendingPointer;
+
+    if (!pending || !card || pending.card !== card) {
+        return;
+    }
+
+    paintSession = {
+        pointerId: pending.pointerId,
+        pointerType: pending.pointerType,
+        card: card,
+        // The long pressed card is selected now, so the stroke should select as well.
+        state: true,
+        startX: pending.startX,
+        startY: pending.startY,
+        painting: false
+    };
+}
+
 function onPaintPointerMove(e) {
     const session = paintSession;
     if (!session || e.pointerId !== session.pointerId) {
@@ -210,7 +265,7 @@ function onPaintPointerMove(e) {
             return;
         }
 
-        if (session.pointerType === 'touch' && Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (session.pointerType === 'touch' && Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
             // Mostly vertical: let the container scroll instead of painting.
             paintSession = null;
             return;
@@ -232,6 +287,10 @@ function onPaintPointerMove(e) {
 }
 
 function onPaintPointerEnd(e) {
+    if (e && pendingPointer && e.pointerId === pendingPointer.pointerId) {
+        pendingPointer = null;
+    }
+
     const session = paintSession;
     if (!session || (e && e.pointerId !== session.pointerId)) {
         return;
@@ -615,8 +674,12 @@ function showSelections(initialCard, addInitialCheck) {
             showSelection(cards[i], initialCard === cards[i], addInitialCheck);
         }
 
+        // Horizontal pans are disabled on cards while selecting so a drag paints instead of scrolling.
+        document.body.classList.add('multiSelectActive');
+
         showSelectionCommands();
         updateItemSelection(initialCard, true);
+        startPaintFromPendingPointer(initialCard);
     });
 }
 
