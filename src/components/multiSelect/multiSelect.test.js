@@ -205,6 +205,44 @@ describe('multiSelect range and paint selection', () => {
         stopMultiSelect();
     });
 
+    test('a click outside the painted cards is never swallowed', async () => {
+        buildDom(4);
+        startMultiSelect(cards[0]);
+        await flush();
+        document.elementFromPoint = () => cards[1].querySelector('.cardBox');
+
+        pointer('pointerdown', 0, 10, 10);
+        pointer('pointermove', 0, 60, 12);
+        pointer('pointerup', 0, 60, 12);
+
+        // The action sheet lives outside the cards: its entries must stay clickable right after a
+        // paint stroke, otherwise multi select actions look dead.
+        const menuEntry = document.createElement('div');
+        document.body.appendChild(menuEntry);
+        const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+        menuEntry.dispatchEvent(click);
+
+        expect(click.defaultPrevented).toBe(false);
+        stopMultiSelect();
+    });
+
+    test('the click that closes a paint stroke on a painted card is swallowed', async () => {
+        buildDom(4);
+        startMultiSelect(cards[0]);
+        await flush();
+        document.elementFromPoint = () => cards[1].querySelector('.cardBox');
+
+        pointer('pointerdown', 0, 10, 10);
+        pointer('pointermove', 0, 60, 12);
+        pointer('pointerup', 0, 60, 12);
+
+        const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+        cards[1].querySelector('.cardBox').dispatchEvent(click);
+
+        expect(click.defaultPrevented).toBe(true);
+        stopMultiSelect();
+    });
+
     test('a vertical touch drag does not paint', async () => {
         buildDom(4);
         startMultiSelect(cards[0]);

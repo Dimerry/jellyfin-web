@@ -74,8 +74,18 @@ function startJob(apiClient, url, successMessage) {
 export function showTranscode(options) {
     return new Promise((resolve) => {
         const apiClient = ServerConnections.getApiClient(options.serverId);
-        const itemIds = options.itemIds && options.itemIds.length ? options.itemIds : [options.itemId];
+        const itemIds = (options.itemIds && options.itemIds.length ? options.itemIds : [options.itemId])
+            .filter(id => Boolean(id));
         const isBatch = itemIds.length > 1;
+
+        if (!itemIds.length) {
+            // Nothing to transcode: silently opening a dialog for "undefined" only produced a
+            // confusing request failure later on.
+            toast(globalize.translate('VideoToolsRequestFailed'));
+            resolve();
+            return;
+        }
+
         const title = isBatch ?
             `${globalize.translate('Transcode')} (${itemIds.length})` :
             globalize.translate('Transcode');

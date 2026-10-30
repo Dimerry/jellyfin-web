@@ -24,6 +24,9 @@ let shiftAnchor = null;
 let paintSession = null;
 let pendingPointer = null;
 let paintSuppressClickUntil = 0;
+// Cards the current paint stroke marked. Only clicks landing on those are swallowed: the browser
+// still emits a click after a drag, but anything else (menus, toolbars) has to stay clickable.
+let paintSuppressTargets = [];
 let selectionOwner = null;
 
 function hideSelections() {
@@ -186,6 +189,7 @@ function setCardChecked(card, checked) {
 function onPaintPointerDown(e) {
     paintSession = null;
     paintSuppressClickUntil = 0;
+    paintSuppressTargets = [];
     pendingPointer = null;
 
     if (e.pointerType === 'mouse' && e.button !== 0) {
@@ -277,6 +281,7 @@ function onPaintPointerMove(e) {
 
         session.painting = true;
         paintSuppressClickUntil = Date.now() + 600;
+        paintSuppressTargets.push(session.card);
         setCardChecked(session.card, session.state);
     }
 
@@ -286,6 +291,7 @@ function onPaintPointerMove(e) {
 
     const card = getCardFromPoint(e.clientX, e.clientY);
     if (card && card !== session.card) {
+        paintSuppressTargets.push(card);
         setCardChecked(card, session.state);
     }
 }
@@ -309,11 +315,30 @@ function onPaintPointerEnd(e) {
 }
 
 function onDocumentClickCapture(e) {
-    if (paintSuppressClickUntil && Date.now() < paintSuppressClickUntil) {
-        paintSuppressClickUntil = 0;
-        e.preventDefault();
-        e.stopPropagation();
+    if (!paintSuppressClickUntil) {
+        return;
     }
+
+    if (Date.now() >= paintSuppressClickUntil) {
+        paintSuppressClickUntil = 0;
+        paintSuppressTargets = [];
+        return;
+    }
+
+    // Only the click that closes the paint stroke itself is dropped. Swallowing every click in the
+    // window used to eat menu and toolbar taps right after painting, which made delete and batch
+    // transcode look dead.
+    const target = e.target;
+    const painted = paintSuppressTargets.some(card => card.contains(target));
+
+    if (!painted) {
+        return;
+    }
+
+    paintSuppressClickUntil = 0;
+    paintSuppressTargets = [];
+    e.preventDefault();
+    e.stopPropagation();
 }
 
 document.addEventListener('pointerdown', onPaintPointerDown, { passive: true });
@@ -410,17 +435,30 @@ function deleteItems(apiClient, itemIds) {
 function showMenuForSelectedItems(e) {
     const apiClient = ServerConnections.currentApiClient();
 
+    // Snapshot the selection: the action sheet and its menu entries run asynchronously, and the
+    // live selection can be torn down in the meantime (view refresh, container re-render, or the
+    // long press of another card). Reading the module state later handed an empty list to the
+    // delete and batch transcode handlers.
+    const selection = selectedItems.slice(0);
+    const selectionElements = selectedElements.slice(0);
+    const selectionContainers = getRefreshContainers(selectionElements);
+
+    if (!selection.length) {
+        hideSelections();
+        return;
+    }
+
     apiClient.getCurrentUser().then(user => {
         // get first selected item to perform metadata refresh permission check
         Promise.all([
-            apiClient.getItem(apiClient.getCurrentUserId(), selectedItems[0]),
-            apiClient.getItems(apiClient.getCurrentUserId(), { Ids: selectedItems })
+            apiClient.getItem(apiClient.getCurrentUserId(), selection[0]),
+            apiClient.getItems(apiClient.getCurrentUserId(), { Ids: selection })
         ]).then(([firstItem, listResult]) => {
             const selectedItemObjects = (listResult && listResult.Items) || [];
-            const onlyImages = selectedItemObjects.length === selectedItems.length
+            const onlyImages = selectedItemObjects.length === selection.length
                 && selectedItemObjects.every(i => i.Type === 'Photo');
             const videoTypes = ['Movie', 'Episode', 'Video', 'MusicVideo'];
-            const onlyVideos = selectedItemObjects.length === selectedItems.length
+            const onlyVideos = selectedItemObjects.length === selection.length
                 && selectedItemObjects.every(i => videoTypes.includes(i.Type));
             const menuItems = [];
 
@@ -514,7 +552,7 @@ function showMenuForSelectedItems(e) {
                     items: menuItems,
                     positionTo: e.target,
                     callback: function (id) {
-                        const items = selectedItems.slice(0);
+                        const items = selection.slice(0);
                         const serverId = apiClient.serverInfo().Id;
 
                         switch (id) {
@@ -540,7 +578,7 @@ function showMenuForSelectedItems(e) {
                                     });
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'playlist':
                                 import('../playlisteditor/playlisteditor').then(({ default: PlaylistEditor }) => {
@@ -555,7 +593,7 @@ function showMenuForSelectedItems(e) {
                                     console.error('[AddToPlaylist] failed to load playlist editor', err);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'transcode':
                                 import('../videotools/videotools').then(({ showTranscode }) => {
@@ -565,13 +603,13 @@ function showMenuForSelectedItems(e) {
                                     });
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'rotateimage':
                                 apiClient.ajax({
                                     type: 'POST',
                                     url: apiClient.getUrl('ImageTools/Rotate', { degrees: 90 }),
-                                    data: JSON.stringify(selectedItems),
+                                    data: JSON.stringify(items),
                                     contentType: 'application/json',
                                     dataType: 'json'
                                 }).then(results => {
@@ -586,12 +624,12 @@ function showMenuForSelectedItems(e) {
                                     toast(globalize.translate('RotateImageFailed'));
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'delete':
                                 deleteItems(apiClient, items).then(dispatchNeedsRefresh);
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'groupvideos':
                                 combineVersions(apiClient, items);
@@ -601,14 +639,14 @@ function showMenuForSelectedItems(e) {
                                     apiClient.markPlayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'markunplayed':
                                 items.forEach(itemId => {
                                     apiClient.markUnplayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'refresh':
                                 import('../refreshdialog/refreshdialog').then(({ default: RefreshDialog }) => {
@@ -618,7 +656,7 @@ function showMenuForSelectedItems(e) {
                                     }).show();
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             default:
                                 break;
@@ -630,16 +668,22 @@ function showMenuForSelectedItems(e) {
     });
 }
 
-function dispatchNeedsRefresh() {
+function getRefreshContainers(elements) {
     const elems = [];
 
-    [].forEach.call(selectedElements, i => {
+    [].forEach.call(elements || [], i => {
         const container = dom.parentWithAttribute(i, 'is', 'emby-itemscontainer');
 
         if (container && !elems.includes(container)) {
             elems.push(container);
         }
     });
+
+    return elems;
+}
+
+function dispatchNeedsRefresh(containers) {
+    const elems = containers || getRefreshContainers(selectedElements);
 
     for (let i = 0, length = elems.length; i < length; i++) {
         elems[i].notifyRefreshNeeded(true);
@@ -666,8 +710,9 @@ function combineVersions(apiClient, selection) {
 
     }).then(() => {
         loading.hide();
+        const containers = getRefreshContainers(selectedElements);
         hideSelections();
-        dispatchNeedsRefresh();
+        dispatchNeedsRefresh(containers);
     });
 }
 
@@ -895,7 +940,9 @@ export default function (options) {
     self.destroy = () => {
         // Leaving the view drops the selection: a stale selection keeps the top bar around and
         // makes the next view's cards (folders included) toggle a checkbox instead of opening.
-        if (!selectionOwner || selectionOwner === container || !selectionOwner.isConnected) {
+        // Only the container that started the selection tears it down. A grouped or re-rendered
+        // list destroys sibling containers all the time, and that must not clear a live selection.
+        if (!selectionOwner || selectionOwner === container) {
             hideSelections();
         }
 
