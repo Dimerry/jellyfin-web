@@ -1935,7 +1935,7 @@
   "VideoToolsColumnItem": "Video",
   "VideoToolsColumnProgress": "Progress",
   "VideoToolsCompleted": "Task completed: {0}",
-  "VideoToolsCutHint": "The middle part is kept and saved next to the source file as <name>.cut.<ext>. Cutting uses stream copy, so boundaries snap to the nearest keyframe.",
+  "VideoToolsCutHint": "The middle part is kept and takes over the source file name (replacing it in place); the original is kept as <name>.old.<ext>. Cutting uses stream copy, so boundaries snap to the nearest keyframe.",
   "VideoToolsDuration": "Video duration: {0} seconds",
   "VideoToolsEndTrim": "Trim from the end (seconds)",
   "VideoToolsFailed": "Task failed: {0}",

@@ -1935,7 +1935,7 @@
   "VideoToolsColumnItem": "视频",
   "VideoToolsColumnProgress": "进度",
   "VideoToolsCompleted": "任务完成：{0}",
-  "VideoToolsCutHint": "保留中间部分，保存到源文件同目录，命名为 <源名称>.cut.<扩展名>。剪辑使用流复制，切点会对齐到最近的关键帧。",
+  "VideoToolsCutHint": "保留中间部分，新文件直接沿用源文件名（覆盖原文件位置），原文件重命名为 <源名称>.old.<扩展名>。剪辑使用流复制，切点会对齐到最近的关键帧。",
   "VideoToolsDuration": "视频时长：{0} 秒",
   "VideoToolsEndTrim": "结尾剪掉（秒）",
   "VideoToolsFailed": "任务失败：{0}",
