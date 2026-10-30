@@ -169,10 +169,135 @@ export function showTranscode(options) {
     });
 }
 
+function formatPreviewTime(seconds) {
+    return `${seconds.toFixed(1)}s`;
+}
+
+/**
+ * Wires the two cut previews: the first kept frame (start trim) and the last kept frame (end trim).
+ * A preview stays hidden while its trim value is 0.
+ */
+function setupCutPreviews(options) {
+    const { dlg, apiClient, itemId, getDuration } = options;
+    const startInput = dlg.querySelector('#txtStartTrim');
+    const endInput = dlg.querySelector('#txtEndTrim');
+    const rotationSelect = dlg.querySelector('#selectRotation');
+    const boxes = {
+        front: dlg.querySelector('#cutPreviewFront'),
+        back: dlg.querySelector('#cutPreviewBack')
+    };
+    const tokens = { front: 0, back: 0 };
+    const timers = { front: null, back: null };
+
+    function hide(role) {
+        const box = boxes[role];
+        tokens[role] += 1;
+        if (timers[role]) {
+            clearTimeout(timers[role]);
+            timers[role] = null;
+        }
+        box.style.display = 'none';
+        box.dataset.time = '';
+        const img = box.querySelector('img');
+        img.onload = null;
+        img.onerror = null;
+        img.removeAttribute('src');
+    }
+
+    function load(role, seconds) {
+        const box = boxes[role];
+        if (!Number.isFinite(seconds) || seconds <= 0) {
+            hide(role);
+            return;
+        }
+
+        const img = box.querySelector('img');
+        const status = box.querySelector('.cutPreviewStatus');
+        const timeLabel = box.querySelector('.cutPreviewTime');
+        const token = ++tokens[role];
+
+        box.style.display = '';
+        box.dataset.time = String(seconds);
+        timeLabel.textContent = formatPreviewTime(seconds);
+        status.textContent = globalize.translate('VideoToolsPreviewLoading');
+        status.style.display = '';
+        img.style.visibility = 'hidden';
+
+        const url = apiClient.getUrl(`VideoTools/${itemId}/Frame`, {
+            timeSeconds: seconds.toFixed(3),
+            maxWidth: 480,
+            rotation: Number(rotationSelect.value || 0),
+            ApiKey: apiClient.accessToken()
+        });
+
+        img.onload = () => {
+            if (token !== tokens[role]) return;
+            status.style.display = 'none';
+            img.style.visibility = '';
+        };
+        img.onerror = () => {
+            if (token !== tokens[role]) return;
+            status.textContent = globalize.translate('VideoToolsPreviewFailed');
+            status.style.display = '';
+            img.style.visibility = 'hidden';
+        };
+        img.src = url;
+    }
+
+    function schedule(role, seconds) {
+        if (timers[role]) {
+            clearTimeout(timers[role]);
+        }
+        timers[role] = setTimeout(() => {
+            timers[role] = null;
+            load(role, seconds);
+        }, 400);
+    }
+
+    function refresh() {
+        const start = Number(startInput.value || 0);
+        const end = Number(endInput.value || 0);
+        const total = getDuration();
+
+        if (Number.isFinite(start) && start > 0) {
+            schedule('front', start);
+        } else {
+            hide('front');
+        }
+
+        if (Number.isFinite(end) && end > 0 && total > 0) {
+            // Stay just inside the kept part so the frame is the last one that survives the cut.
+            const time = total - end - 0.05;
+            if (time > 0) {
+                schedule('back', time);
+            } else {
+                hide('back');
+            }
+        } else {
+            hide('back');
+        }
+    }
+
+    startInput.addEventListener('input', refresh);
+    endInput.addEventListener('input', refresh);
+    rotationSelect.addEventListener('change', () => {
+        ['front', 'back'].forEach((role) => {
+            const time = Number(boxes[role].dataset.time || 0);
+            if (time > 0) {
+                load(role, time);
+            }
+        });
+    });
+
+    refresh();
+
+    return { refresh };
+}
+
 export function showCut(options) {
     return new Promise((resolve) => {
         const apiClient = ServerConnections.getApiClient(options.serverId);
-        const duration = options.durationTicks ? options.durationTicks / 10000000 : 0;
+        let duration = options.durationTicks ? options.durationTicks / 10000000 : 0;
         const dlg = createDialog(globalize.translate('CutVideo'));
 
         const durationText = duration > 0 ?
@@ -181,7 +306,7 @@ export function showCut(options) {
 
         dlg.innerHTML += globalize.translateHtml(`
             <form class="formDialogContent" style="padding:1.5em 2em;">
-                <div class="fieldDescription">${durationText}</div>
+                <div class="fieldDescription" id="cutDurationText">${durationText}</div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtStartTrim">${globalize.translate('VideoToolsStartTrim')}</label>
                     <input is="emby-input" type="number" id="txtStartTrim" min="0" step="0.1" value="0" />
@@ -189,6 +314,24 @@ export function showCut(options) {
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtEndTrim">${globalize.translate('VideoToolsEndTrim')}</label>
                     <input is="emby-input" type="number" id="txtEndTrim" min="0" step="0.1" value="0" />
+                </div>
+                <div id="cutPreviews" style="display:flex;gap:.75em;margin:.25em 0 .75em;">
+                    <div id="cutPreviewFront" style="display:none;flex:1 1 0;min-width:0;">
+                        <div class="fieldDescription" style="margin:0 0 .3em;">${globalize.translate('VideoToolsPreviewFront')}</div>
+                        <div style="position:relative;background:#000;border-radius:4px;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
+                            <img alt="" style="max-width:100%;max-height:100%;display:block;" />
+                            <div class="cutPreviewStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfcfcf;font-size:.8em;background:rgba(0,0,0,.35);"></div>
+                        </div>
+                        <div class="cutPreviewTime fieldDescription" style="margin:.2em 0 0;"></div>
+                    </div>
+                    <div id="cutPreviewBack" style="display:none;flex:1 1 0;min-width:0;">
+                        <div class="fieldDescription" style="margin:0 0 .3em;">${globalize.translate('VideoToolsPreviewBack')}</div>
+                        <div style="position:relative;background:#000;border-radius:4px;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
+                            <img alt="" style="max-width:100%;max-height:100%;display:block;" />
+                            <div class="cutPreviewStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfcfcf;font-size:.8em;background:rgba(0,0,0,.35);"></div>
+                        </div>
+                        <div class="cutPreviewTime fieldDescription" style="margin:.2em 0 0;"></div>
+                    </div>
                 </div>
                 <div class="selectContainer">
                     <label class="selectLabel" for="selectRotation">${globalize.translate('VideoToolsRotation')}</label>
@@ -208,6 +351,29 @@ export function showCut(options) {
         `);
 
         attachCancel(dlg);
+
+        const previews = setupCutPreviews({
+            dlg: dlg,
+            apiClient: apiClient,
+            itemId: options.itemId,
+            getDuration: () => duration
+        });
+
+        if (!Number.isFinite(duration) || duration <= 0) {
+            // The end preview needs the duration; fetch it when the caller did not provide it.
+            apiClient.getItem(apiClient.getCurrentUserId(), options.itemId).then((item) => {
+                if (item && item.RunTimeTicks) {
+                    duration = item.RunTimeTicks / 10000000;
+                    const text = dlg.querySelector('#cutDurationText');
+                    if (text) {
+                        text.textContent = globalize.translate('VideoToolsDuration', Math.round(duration));
+                    }
+                    previews.refresh();
+                }
+            }).catch(() => {
+                // Ignore: the start preview still works without a known duration.
+            });
+        }
 
         dlg.querySelector('form').addEventListener('submit', (e) => {
             e.preventDefault();
