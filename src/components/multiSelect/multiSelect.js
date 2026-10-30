@@ -20,11 +20,16 @@ import datetime from '../../scripts/datetime';
 let selectedItems = [];
 let selectedElements = [];
 let currentSelectionCommandsPanel;
+let shiftAnchor = null;
+let paintSession = null;
+let paintSuppressClickUntil = 0;
 
 function hideSelections() {
     const selectionCommandsPanel = currentSelectionCommandsPanel;
     if (selectionCommandsPanel) {
-        selectionCommandsPanel.parentNode.removeChild(selectionCommandsPanel);
+        if (selectionCommandsPanel.parentNode) {
+            selectionCommandsPanel.parentNode.removeChild(selectionCommandsPanel);
+        }
         currentSelectionCommandsPanel = null;
 
         selectedItems = [];
@@ -95,7 +100,164 @@ function updateItemSelection(chkItemSelect, selected) {
     } else {
         hideSelections();
     }
+
+    if (chkItemSelect.isConnected) {
+        // showSelections() passes the card, clicks pass the checkbox: normalise to the checkbox.
+        shiftAnchor = chkItemSelect.querySelector ?
+            (chkItemSelect.querySelector('.chkItemSelect') || chkItemSelect) :
+            chkItemSelect;
+    }
 }
+
+/**
+ * Selects every visible card between the last clicked one and the given checkbox.
+ * Used for shift+click range selection.
+ * @param {HTMLInputElement} chkItemSelect The checkbox of the card that was shift clicked.
+ * @returns {boolean} Whether a range was selected.
+ */
+function selectRangeTo(chkItemSelect) {
+    if (!shiftAnchor || !shiftAnchor.isConnected) {
+        return false;
+    }
+
+    const checkboxes = Array.from(document.querySelectorAll('.chkItemSelect'))
+        .filter(i => i.getBoundingClientRect().width > 0);
+    const from = checkboxes.indexOf(shiftAnchor);
+    const to = checkboxes.indexOf(chkItemSelect);
+
+    if (from < 0 || to < 0 || from === to) {
+        return false;
+    }
+
+    const start = Math.min(from, to);
+    const end = Math.max(from, to);
+
+    for (let i = start; i <= end; i++) {
+        if (!checkboxes[i].checked) {
+            checkboxes[i].checked = true;
+            updateItemSelection(checkboxes[i], true);
+        }
+    }
+
+    shiftAnchor = chkItemSelect;
+    return true;
+}
+
+function isMultiSelectActive() {
+    return document.querySelector('.itemSelectionPanel') !== null;
+}
+
+function getCardFromPoint(x, y) {
+    const element = document.elementFromPoint(x, y);
+    return element ? dom.parentWithClass(element, 'card') : null;
+}
+
+function setCardChecked(card, checked) {
+    const chkItemSelect = card ? card.querySelector('.chkItemSelect') : null;
+    if (!chkItemSelect || !chkItemSelect.isConnected || chkItemSelect.checked === checked) {
+        return;
+    }
+
+    chkItemSelect.checked = checked;
+    updateItemSelection(chkItemSelect, checked);
+}
+
+/**
+ * Starts a drag paint gesture when the pointer goes down on a card in selection mode.
+ * Moving horizontally over other cards selects (or deselects) them like a brush.
+ * A mostly vertical touch swipe is left alone so the grid can still be scrolled.
+ */
+function onPaintPointerDown(e) {
+    paintSession = null;
+    paintSuppressClickUntil = 0;
+
+    if (!isMultiSelectActive() || (e.pointerType === 'mouse' && e.button !== 0)) {
+        return;
+    }
+
+    const card = dom.parentWithClass(e.target, 'card');
+    if (!card || dom.parentWithClass(e.target, 'itemSelectionPanel')) {
+        return;
+    }
+
+    const chkItemSelect = card.querySelector('.chkItemSelect');
+    if (!chkItemSelect) {
+        return;
+    }
+
+    paintSession = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        card: card,
+        state: !chkItemSelect.checked,
+        startX: e.clientX,
+        startY: e.clientY,
+        painting: false
+    };
+}
+
+function onPaintPointerMove(e) {
+    const session = paintSession;
+    if (!session || e.pointerId !== session.pointerId) {
+        return;
+    }
+
+    if (!session.painting) {
+        const deltaX = e.clientX - session.startX;
+        const deltaY = e.clientY - session.startY;
+
+        if (Math.hypot(deltaX, deltaY) < 8) {
+            return;
+        }
+
+        if (session.pointerType === 'touch' && Math.abs(deltaY) > Math.abs(deltaX)) {
+            // Mostly vertical: let the container scroll instead of painting.
+            paintSession = null;
+            return;
+        }
+
+        session.painting = true;
+        paintSuppressClickUntil = Date.now() + 600;
+        setCardChecked(session.card, session.state);
+    }
+
+    if (e.cancelable) {
+        e.preventDefault();
+    }
+
+    const card = getCardFromPoint(e.clientX, e.clientY);
+    if (card && card !== session.card) {
+        setCardChecked(card, session.state);
+    }
+}
+
+function onPaintPointerEnd(e) {
+    const session = paintSession;
+    if (!session || (e && e.pointerId !== session.pointerId)) {
+        return;
+    }
+
+    if (session.painting) {
+        // Swallow the click that the browser emits after the drag.
+        paintSuppressClickUntil = Date.now() + 600;
+    }
+
+    paintSession = null;
+}
+
+function onDocumentClickCapture(e) {
+    if (paintSuppressClickUntil && Date.now() < paintSuppressClickUntil) {
+        paintSuppressClickUntil = 0;
+        e.preventDefault();
+        e.stopPropagation();
+    }
+}
+
+document.addEventListener('pointerdown', onPaintPointerDown, { passive: true });
+document.addEventListener('pointermove', onPaintPointerMove, { passive: false });
+document.addEventListener('pointerup', onPaintPointerEnd, { passive: true });
+document.addEventListener('pointercancel', onPaintPointerEnd, { passive: true });
+document.addEventListener('click', onDocumentClickCapture, true);
 
 function onSelectionChange() {
     updateItemSelection(this, this.checked);
@@ -466,6 +628,14 @@ function onContainerClick(e) {
         if (card) {
             const itemSelectionPanel = card.querySelector('.itemSelectionPanel');
             if (itemSelectionPanel) {
+                const chkItemSelect = itemSelectionPanel.querySelector('.chkItemSelect');
+
+                if (e.shiftKey && chkItemSelect && selectRangeTo(chkItemSelect)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+
                 return onItemSelectionPanelClick(e, itemSelectionPanel);
             }
         }
