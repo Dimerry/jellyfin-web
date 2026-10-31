@@ -1,4 +1,5 @@
 export const SEARCH_SECTIONS_SORT_ORDER = [
+    'Folders',
     'Movies',
     'Shows',
     'Episodes',

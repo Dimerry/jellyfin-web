@@ -42,3 +42,9 @@
 .btnSelectionPanelOptions {
     margin-left: auto;
 }
+
+// While selecting, cards only allow vertical panning: horizontal drags become paint strokes
+// instead of scrolling the grid.
+body.multiSelectActive .card {
+    touch-action: pan-y pinch-zoom;
+}

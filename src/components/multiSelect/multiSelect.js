@@ -12,6 +12,7 @@ import globalize from '../../lib/globalize';
 import dom from '../../utils/dom';
 import './multiSelect.scss';
 import alert from '../alert';
+import toast from '../toast/toast';
 import confirm from '../confirm/confirm';
 import itemHelper from '../itemHelper';
 import datetime from '../../scripts/datetime';
@@ -19,15 +20,30 @@ import datetime from '../../scripts/datetime';
 let selectedItems = [];
 let selectedElements = [];
 let currentSelectionCommandsPanel;
+let shiftAnchor = null;
+let paintSession = null;
+let pendingPointer = null;
+let paintSuppressClickUntil = 0;
+// Cards the current paint stroke marked. Only clicks landing on those are swallowed: the browser
+// still emits a click after a drag, but anything else (menus, toolbars) has to stay clickable.
+let paintSuppressTargets = [];
+let selectionOwner = null;
 
 function hideSelections() {
     const selectionCommandsPanel = currentSelectionCommandsPanel;
     if (selectionCommandsPanel) {
-        selectionCommandsPanel.parentNode.removeChild(selectionCommandsPanel);
+        if (selectionCommandsPanel.parentNode) {
+            selectionCommandsPanel.parentNode.removeChild(selectionCommandsPanel);
+        }
         currentSelectionCommandsPanel = null;
 
         selectedItems = [];
         selectedElements = [];
+        shiftAnchor = null;
+        paintSession = null;
+        pendingPointer = null;
+        selectionOwner = null;
+        document.body.classList.remove('multiSelectActive');
         const elems = document.querySelectorAll('.itemSelectionPanel');
         for (let i = 0, length = elems.length; i < length; i++) {
             const parent = elems[i].parentNode;
@@ -59,6 +75,18 @@ function onItemSelectionPanelClick(e, itemSelectionPanel) {
 }
 
 function updateItemSelection(chkItemSelect, selected) {
+    // showSelections() passes the card, clicks pass the checkbox: normalise to the checkbox so the
+    // visual check mark and the counter never disagree.
+    let element = chkItemSelect;
+    if (element && element.tagName !== 'INPUT') {
+        const checkbox = element.querySelector('.chkItemSelect');
+        if (checkbox) {
+            element = checkbox;
+            element.checked = selected;
+        }
+    }
+    chkItemSelect = element;
+
     const parentWithId = dom.parentWithAttribute(chkItemSelect, 'data-id');
 
     // If the element doesn't have a parent with data-id, it's not a valid item
@@ -94,7 +122,230 @@ function updateItemSelection(chkItemSelect, selected) {
     } else {
         hideSelections();
     }
+
+    if (chkItemSelect.isConnected) {
+        shiftAnchor = chkItemSelect;
+    }
 }
+
+/**
+ * Selects every visible card between the last clicked one and the given checkbox.
+ * Used for shift+click range selection.
+ * @param {HTMLInputElement} chkItemSelect The checkbox of the card that was shift clicked.
+ * @returns {boolean} Whether a range was selected.
+ */
+function selectRangeTo(chkItemSelect) {
+    if (!shiftAnchor || !shiftAnchor.isConnected) {
+        return false;
+    }
+
+    const checkboxes = Array.from(document.querySelectorAll('.chkItemSelect'))
+        .filter(i => i.getBoundingClientRect().width > 0);
+    const from = checkboxes.indexOf(shiftAnchor);
+    const to = checkboxes.indexOf(chkItemSelect);
+
+    if (from < 0 || to < 0 || from === to) {
+        return false;
+    }
+
+    const start = Math.min(from, to);
+    const end = Math.max(from, to);
+
+    for (let i = start; i <= end; i++) {
+        if (!checkboxes[i].checked) {
+            checkboxes[i].checked = true;
+            updateItemSelection(checkboxes[i], true);
+        }
+    }
+
+    shiftAnchor = chkItemSelect;
+    return true;
+}
+
+function isMultiSelectActive() {
+    return document.querySelector('.itemSelectionPanel') !== null;
+}
+
+function getCardFromPoint(x, y) {
+    const element = document.elementFromPoint(x, y);
+    return element ? dom.parentWithClass(element, 'card') : null;
+}
+
+function setCardChecked(card, checked) {
+    const chkItemSelect = card ? card.querySelector('.chkItemSelect') : null;
+    if (!chkItemSelect || !chkItemSelect.isConnected || chkItemSelect.checked === checked) {
+        return;
+    }
+
+    chkItemSelect.checked = checked;
+    updateItemSelection(chkItemSelect, checked);
+}
+
+/**
+ * Starts a drag paint gesture when the pointer goes down on a card in selection mode.
+ * Moving over other cards selects (or deselects) them like a brush.
+ * A mostly vertical touch swipe is left alone so the grid can still be scrolled.
+ */
+function onPaintPointerDown(e) {
+    paintSession = null;
+    paintSuppressClickUntil = 0;
+    paintSuppressTargets = [];
+    pendingPointer = null;
+
+    if (e.pointerType === 'mouse' && e.button !== 0) {
+        return;
+    }
+
+    const card = dom.parentWithClass(e.target, 'card');
+    if (!card) {
+        return;
+    }
+
+    pendingPointer = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        card: card,
+        startX: e.clientX,
+        startY: e.clientY
+    };
+
+    if (!isMultiSelectActive()) {
+        // The long press that enters selection mode may turn this same gesture into a paint one.
+        return;
+    }
+
+    // The checkbox itself keeps its normal toggle behaviour.
+    if (dom.parentWithClass(e.target, 'checkboxContainer')) {
+        return;
+    }
+
+    const chkItemSelect = card.querySelector('.chkItemSelect');
+    if (!chkItemSelect) {
+        return;
+    }
+
+    paintSession = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        card: card,
+        state: !chkItemSelect.checked,
+        startX: e.clientX,
+        startY: e.clientY,
+        painting: false
+    };
+}
+
+/**
+ * A long press entered selection mode while the finger/mouse is still down: continue that
+ * gesture as a paint stroke instead of dropping it.
+ * @param {HTMLElement} card The card that was long pressed.
+ */
+function startPaintFromPendingPointer(card) {
+    const pending = pendingPointer;
+
+    if (!pending || !card || pending.card !== card) {
+        return;
+    }
+
+    paintSession = {
+        pointerId: pending.pointerId,
+        pointerType: pending.pointerType,
+        card: card,
+        // The long pressed card is selected now, so the stroke should select as well.
+        state: true,
+        startX: pending.startX,
+        startY: pending.startY,
+        painting: false
+    };
+}
+
+function onPaintPointerMove(e) {
+    const session = paintSession;
+    if (!session || e.pointerId !== session.pointerId) {
+        return;
+    }
+
+    if (!session.painting) {
+        const deltaX = e.clientX - session.startX;
+        const deltaY = e.clientY - session.startY;
+
+        if (Math.hypot(deltaX, deltaY) < 8) {
+            return;
+        }
+
+        if (session.pointerType === 'touch' && Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
+            // Mostly vertical: let the container scroll instead of painting.
+            paintSession = null;
+            return;
+        }
+
+        session.painting = true;
+        paintSuppressClickUntil = Date.now() + 600;
+        paintSuppressTargets.push(session.card);
+        setCardChecked(session.card, session.state);
+    }
+
+    if (e.cancelable) {
+        e.preventDefault();
+    }
+
+    const card = getCardFromPoint(e.clientX, e.clientY);
+    if (card && card !== session.card) {
+        paintSuppressTargets.push(card);
+        setCardChecked(card, session.state);
+    }
+}
+
+function onPaintPointerEnd(e) {
+    if (e && pendingPointer && e.pointerId === pendingPointer.pointerId) {
+        pendingPointer = null;
+    }
+
+    const session = paintSession;
+    if (!session || (e && e.pointerId !== session.pointerId)) {
+        return;
+    }
+
+    if (session.painting) {
+        // Swallow the click that the browser emits after the drag.
+        paintSuppressClickUntil = Date.now() + 600;
+    }
+
+    paintSession = null;
+}
+
+function onDocumentClickCapture(e) {
+    if (!paintSuppressClickUntil) {
+        return;
+    }
+
+    if (Date.now() >= paintSuppressClickUntil) {
+        paintSuppressClickUntil = 0;
+        paintSuppressTargets = [];
+        return;
+    }
+
+    // Only the click that closes the paint stroke itself is dropped. Swallowing every click in the
+    // window used to eat menu and toolbar taps right after painting, which made delete and batch
+    // transcode look dead.
+    const target = e.target;
+    const painted = paintSuppressTargets.some(card => card.contains(target));
+
+    if (!painted) {
+        return;
+    }
+
+    paintSuppressClickUntil = 0;
+    paintSuppressTargets = [];
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+document.addEventListener('pointerdown', onPaintPointerDown, { passive: true });
+document.addEventListener('pointermove', onPaintPointerMove, { passive: false });
+document.addEventListener('pointerup', onPaintPointerEnd, { passive: true });
+document.addEventListener('pointercancel', onPaintPointerEnd, { passive: true });
+document.addEventListener('click', onDocumentClickCapture, true);
 
 function onSelectionChange() {
     updateItemSelection(this, this.checked);
@@ -184,9 +435,31 @@ function deleteItems(apiClient, itemIds) {
 function showMenuForSelectedItems(e) {
     const apiClient = ServerConnections.currentApiClient();
 
+    // Snapshot the selection: the action sheet and its menu entries run asynchronously, and the
+    // live selection can be torn down in the meantime (view refresh, container re-render, or the
+    // long press of another card). Reading the module state later handed an empty list to the
+    // delete and batch transcode handlers.
+    const selection = selectedItems.slice(0);
+    const selectionElements = selectedElements.slice(0);
+    const selectionContainers = getRefreshContainers(selectionElements);
+
+    if (!selection.length) {
+        hideSelections();
+        return;
+    }
+
     apiClient.getCurrentUser().then(user => {
         // get first selected item to perform metadata refresh permission check
-        apiClient.getItem(apiClient.getCurrentUserId(), selectedItems[0]).then(firstItem => {
+        Promise.all([
+            apiClient.getItem(apiClient.getCurrentUserId(), selection[0]),
+            apiClient.getItems(apiClient.getCurrentUserId(), { Ids: selection })
+        ]).then(([firstItem, listResult]) => {
+            const selectedItemObjects = (listResult && listResult.Items) || [];
+            const onlyImages = selectedItemObjects.length === selection.length
+                && selectedItemObjects.every(i => i.Type === 'Photo');
+            const videoTypes = ['Movie', 'Episode', 'Video', 'MusicVideo'];
+            const onlyVideos = selectedItemObjects.length === selection.length
+                && selectedItemObjects.every(i => videoTypes.includes(i.Type));
             const menuItems = [];
 
             menuItems.push({
@@ -236,6 +509,22 @@ function showMenuForSelectedItems(e) {
                 });
             }
 
+            if (user.Policy.IsAdministrator && onlyImages) {
+                menuItems.push({
+                    name: globalize.translate('RotateImageLeft'),
+                    id: 'rotateimage',
+                    icon: 'rotate_left'
+                });
+            }
+
+            if (user.Policy.IsAdministrator && onlyVideos) {
+                menuItems.push({
+                    name: globalize.translate('VideoToolsTranscodeSelected', selectedItems.length),
+                    id: 'transcode',
+                    icon: 'sync'
+                });
+            }
+
             menuItems.push({
                 name: globalize.translate('MarkPlayed'),
                 id: 'markplayed',
@@ -263,7 +552,7 @@ function showMenuForSelectedItems(e) {
                     items: menuItems,
                     positionTo: e.target,
                     callback: function (id) {
-                        const items = selectedItems.slice(0);
+                        const items = selection.slice(0);
                         const serverId = apiClient.serverInfo().Id;
 
                         switch (id) {
@@ -289,7 +578,7 @@ function showMenuForSelectedItems(e) {
                                     });
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'playlist':
                                 import('../playlisteditor/playlisteditor').then(({ default: PlaylistEditor }) => {
@@ -304,12 +593,43 @@ function showMenuForSelectedItems(e) {
                                     console.error('[AddToPlaylist] failed to load playlist editor', err);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
+                                break;
+                            case 'transcode':
+                                import('../videotools/videotools').then(({ showTranscode }) => {
+                                    showTranscode({
+                                        itemIds: items,
+                                        serverId: serverId
+                                    });
+                                });
+                                hideSelections();
+                                dispatchNeedsRefresh(selectionContainers);
+                                break;
+                            case 'rotateimage':
+                                apiClient.ajax({
+                                    type: 'POST',
+                                    url: apiClient.getUrl('ImageTools/Rotate', { degrees: 90 }),
+                                    data: JSON.stringify(items),
+                                    contentType: 'application/json',
+                                    dataType: 'json'
+                                }).then(results => {
+                                    const list = results || [];
+                                    const failed = list.filter(r => !r.Success).length;
+                                    if (failed > 0) {
+                                        toast(globalize.translate('RotateImageFailedCount', failed, list.length - failed));
+                                    } else {
+                                        toast(globalize.translate('RotateImageSuccessCount', list.length));
+                                    }
+                                }, () => {
+                                    toast(globalize.translate('RotateImageFailed'));
+                                });
+                                hideSelections();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'delete':
                                 deleteItems(apiClient, items).then(dispatchNeedsRefresh);
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'groupvideos':
                                 combineVersions(apiClient, items);
@@ -319,14 +639,14 @@ function showMenuForSelectedItems(e) {
                                     apiClient.markPlayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'markunplayed':
                                 items.forEach(itemId => {
                                     apiClient.markUnplayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             case 'refresh':
                                 import('../refreshdialog/refreshdialog').then(({ default: RefreshDialog }) => {
@@ -336,7 +656,7 @@ function showMenuForSelectedItems(e) {
                                     }).show();
                                 });
                                 hideSelections();
-                                dispatchNeedsRefresh();
+                                dispatchNeedsRefresh(selectionContainers);
                                 break;
                             default:
                                 break;
@@ -348,16 +668,22 @@ function showMenuForSelectedItems(e) {
     });
 }
 
-function dispatchNeedsRefresh() {
+function getRefreshContainers(elements) {
     const elems = [];
 
-    [].forEach.call(selectedElements, i => {
+    [].forEach.call(elements || [], i => {
         const container = dom.parentWithAttribute(i, 'is', 'emby-itemscontainer');
 
         if (container && !elems.includes(container)) {
             elems.push(container);
         }
     });
+
+    return elems;
+}
+
+function dispatchNeedsRefresh(containers) {
+    const elems = containers || getRefreshContainers(selectedElements);
 
     for (let i = 0, length = elems.length; i < length; i++) {
         elems[i].notifyRefreshNeeded(true);
@@ -384,20 +710,29 @@ function combineVersions(apiClient, selection) {
 
     }).then(() => {
         loading.hide();
+        const containers = getRefreshContainers(selectedElements);
         hideSelections();
-        dispatchNeedsRefresh();
+        dispatchNeedsRefresh(containers);
     });
 }
 
 function showSelections(initialCard, addInitialCheck) {
+    selectionOwner = initialCard?.closest?.('[is="emby-itemscontainer"]')
+        || initialCard?.parentElement
+        || null;
+
     import('../../elements/emby-checkbox/emby-checkbox').then(() => {
         const cards = document.querySelectorAll('.card');
         for (let i = 0, length = cards.length; i < length; i++) {
             showSelection(cards[i], initialCard === cards[i], addInitialCheck);
         }
 
+        // Horizontal pans are disabled on cards while selecting so a drag paints instead of scrolling.
+        document.body.classList.add('multiSelectActive');
+
         showSelectionCommands();
         updateItemSelection(initialCard, true);
+        startPaintFromPendingPointer(initialCard);
     });
 }
 
@@ -409,6 +744,14 @@ function onContainerClick(e) {
         if (card) {
             const itemSelectionPanel = card.querySelector('.itemSelectionPanel');
             if (itemSelectionPanel) {
+                const chkItemSelect = itemSelectionPanel.querySelector('.chkItemSelect');
+
+                if (e.shiftKey && chkItemSelect && selectRangeTo(chkItemSelect)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+
                 return onItemSelectionPanelClick(e, itemSelectionPanel);
             }
         }
@@ -595,6 +938,14 @@ export default function (options) {
     self.onContainerClick = onContainerClick;
 
     self.destroy = () => {
+        // Leaving the view drops the selection: a stale selection keeps the top bar around and
+        // makes the next view's cards (folders included) toggle a checkbox instead of opening.
+        // Only the container that started the selection tears it down. A grouped or re-rendered
+        // list destroys sibling containers all the time, and that must not clear a live selection.
+        if (!selectionOwner || selectionOwner === container) {
+            hideSelections();
+        }
+
         container.removeEventListener('click', onContainerClick);
         container.removeEventListener('contextmenu', onTapHold);
 

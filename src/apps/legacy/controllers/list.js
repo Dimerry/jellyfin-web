@@ -1074,6 +1074,14 @@ class ItemsView {
             name: globalize.translate('Runtime'),
             value: [ItemSortBy.Runtime, ItemSortBy.SortName].join(',')
         });
+        sortBy.push({
+            name: globalize.translate('LabelBitrate'),
+            value: [ItemSortBy.VideoBitRate, ItemSortBy.SortName].join(',')
+        });
+        sortBy.push({
+            name: globalize.translate('LabelFileSize'),
+            value: ['Size', ItemSortBy.SortName].join(',')
+        });
         return sortBy;
     }
 

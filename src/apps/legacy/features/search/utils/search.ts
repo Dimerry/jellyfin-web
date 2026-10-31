@@ -102,6 +102,8 @@ export function getTitleFromType(type: BaseItemKind) {
             return 'Books';
         case BaseItemKind.BoxSet:
             return 'Collections';
+        case BaseItemKind.Folder:
+            return 'Folders';
         default:
             return '';
     }
@@ -110,20 +112,26 @@ export function getTitleFromType(type: BaseItemKind) {
 export function getItemTypesFromCollectionType(collectionType: CollectionType | undefined) {
     switch (collectionType) {
         case CollectionType.Movies:
-            return [ BaseItemKind.Movie ];
+            return [
+                BaseItemKind.Folder,
+                BaseItemKind.Movie
+            ];
         case CollectionType.Tvshows:
             return [
+                BaseItemKind.Folder,
                 BaseItemKind.Series,
                 BaseItemKind.Episode
             ];
         case CollectionType.Music:
             return [
+                BaseItemKind.Folder,
                 BaseItemKind.Playlist,
                 BaseItemKind.MusicAlbum,
                 BaseItemKind.Audio
             ];
         default:
             return [
+                BaseItemKind.Folder,
                 BaseItemKind.Movie,
                 BaseItemKind.Series,
                 BaseItemKind.Episode,

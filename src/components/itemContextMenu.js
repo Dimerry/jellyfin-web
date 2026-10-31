@@ -41,6 +41,34 @@ function getDeleteLabel(type) {
     }
 }
 
+/** Item types that are virtual and have no single file or folder to rename on disk. */
+const RENAME_EXCLUDED_TYPES = [
+    'AggregateFolder',
+    'BoxSet',
+    'Channel',
+    'CollectionFolder',
+    'Playlist',
+    'Program',
+    'Recording',
+    'SeriesTimer',
+    'Timer',
+    'TvChannel',
+    'UserView'
+];
+
+function canRenameItem(item) {
+    if (RENAME_EXCLUDED_TYPES.includes(item.Type)) {
+        return false;
+    }
+
+    return Boolean(item.IsFolder || item.MediaType === 'Video' || item.MediaType === 'Audio');
+}
+
+/** Images can be rotated in place (counter-clockwise, 90°) by an administrator. */
+function canRotateItem(item) {
+    return item.Type === 'Photo';
+}
+
 export async function getCommands(options) {
     const item = options.item;
     const user = options.user;
@@ -207,6 +235,22 @@ export async function getCommands(options) {
         }
     }
 
+    if (user.Policy.IsAdministrator && options.rename !== false && canRenameItem(item)) {
+        commands.push({
+            name: globalize.translate('ButtonRename'),
+            id: 'rename',
+            icon: 'drive_file_rename_outline'
+        });
+    }
+
+    if (user.Policy.IsAdministrator && canRotateItem(item)) {
+        commands.push({
+            name: globalize.translate('RotateImageLeft'),
+            id: 'rotateimage',
+            icon: 'rotate_left'
+        });
+    }
+
     if (item.CanDelete && options.deleteItem !== false) {
         commands.push({
             name: getDeleteLabel(item.Type),
@@ -271,6 +315,20 @@ export async function getCommands(options) {
             name: globalize.translate('Identify'),
             id: 'identify',
             icon: 'edit'
+        });
+    }
+
+    if (item.MediaType === 'Video' && user.Policy.IsAdministrator && options.videoTools !== false) {
+        commands.push({
+            name: globalize.translate('Transcode'),
+            id: 'transcode',
+            icon: 'sync'
+        });
+
+        commands.push({
+            name: globalize.translate('CutVideo'),
+            id: 'cut',
+            icon: 'content_cut'
         });
     }
 
@@ -529,6 +587,48 @@ function executeCommand(item, id, options) {
             case 'moremediainfo':
                 import('./itemMediaInfo/itemMediaInfo').then((itemMediaInfo) => {
                     itemMediaInfo.show(itemId, serverId).then(getResolveFunction(resolve, id), getResolveFunction(resolve, id));
+                });
+                break;
+            case 'transcode':
+                import('./videotools/videotools').then(({ showTranscode }) => {
+                    showTranscode({
+                        itemId: itemId,
+                        serverId: serverId,
+                        itemName: item.Name
+                    }).then(getResolveFunction(resolve, id), getResolveFunction(resolve, id));
+                });
+                break;
+            case 'rotateimage':
+                apiClient.ajax({
+                    type: 'POST',
+                    url: apiClient.getUrl(`ImageTools/${itemId}/Rotate`, { degrees: 90 }),
+                    dataType: 'json'
+                }).then(result => {
+                    if (result && result.Success === false) {
+                        toast(globalize.translate('RotateImageFailed'));
+                    } else {
+                        toast(globalize.translate('RotateImageSuccess'));
+                    }
+                }, () => {
+                    toast(globalize.translate('RotateImageFailed'));
+                }).then(getResolveFunction(resolve, id, true), getResolveFunction(resolve, id));
+                break;
+            case 'rename':
+                import('./renameitem/renameitem').then(({ showRename }) => {
+                    showRename({
+                        itemId: itemId,
+                        serverId: serverId
+                    }).then(getResolveFunction(resolve, id, true), getResolveFunction(resolve, id));
+                });
+                break;
+            case 'cut':
+                import('./videotools/videotools').then(({ showCut }) => {
+                    showCut({
+                        itemId: itemId,
+                        serverId: serverId,
+                        itemName: item.Name,
+                        durationTicks: item.RunTimeTicks
+                    }).then(getResolveFunction(resolve, id), getResolveFunction(resolve, id));
                 });
                 break;
             case 'multiSelect':
