@@ -96,8 +96,8 @@ export function showTranscode(options) {
                 <div class="selectContainer">
                     <label class="selectLabel" for="selectCodec">${globalize.translate('VideoToolsCodec')}</label>
                     <select is="emby-select" id="selectCodec" class="emby-select-withcolor emby-select">
-                        <option value="h265" selected>H.265 (Intel QSV)</option>
-                        <option value="av1">AV1 (software, slow)</option>
+                        <option value="h265" selected>H.265</option>
+                        <option value="av1">AV1</option>
                     </select>
                 </div>
                 <div class="selectContainer">
@@ -184,13 +184,32 @@ function formatPreviewTime(seconds) {
 }
 
 /**
+ * Formats a duration in seconds as hours/minutes/seconds, dropping leading zero units.
+ * 4530 -> "1小时15分30秒", 90 -> "1分30秒", 12 -> "12秒".
+ */
+function formatDuration(seconds) {
+    const total = Math.max(0, Math.round(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+
+    if (hours > 0) {
+        return globalize.translate('VideoToolsDurationHms', hours, minutes, secs);
+    }
+
+    if (minutes > 0) {
+        return globalize.translate('VideoToolsDurationMs', minutes, secs);
+    }
+
+    return globalize.translate('VideoToolsDurationS', secs);
+}
+
+/**
  * Wires the two cut previews: the first kept frame (start trim) and the last kept frame (end trim).
  * A preview stays hidden while its trim value is 0.
  */
 function setupCutPreviews(options) {
-    const { dlg, apiClient, itemId, getDuration } = options;
-    const startInput = dlg.querySelector('#txtStartTrim');
-    const endInput = dlg.querySelector('#txtEndTrim');
+    const { dlg, apiClient, itemId, getDuration, getStart, getEnd, trimInputs } = options;
     const rotationSelect = dlg.querySelector('#selectRotation');
     const boxes = {
         front: dlg.querySelector('#cutPreviewFront'),
@@ -198,6 +217,18 @@ function setupCutPreviews(options) {
     };
     const tokens = { front: 0, back: 0 };
     const timers = { front: null, back: null };
+    const container = dlg.querySelector('#cutPreviews');
+
+    // The container always lays out two equal columns, so a single preview keeps
+    // the same size as when both are visible; a lone preview is left-aligned.
+    function syncLayout() {
+        const frontShown = boxes.front.style.display !== 'none';
+        const backShown = boxes.back.style.display !== 'none';
+
+        boxes.front.style.gridColumn = frontShown && !backShown ? '1' : '';
+        boxes.back.style.gridColumn = backShown && !frontShown ? '1' : '';
+        container.style.display = frontShown || backShown ? 'grid' : 'none';
+    }
 
     function hide(role) {
         const box = boxes[role];
@@ -212,6 +243,7 @@ function setupCutPreviews(options) {
         img.onload = null;
         img.onerror = null;
         img.removeAttribute('src');
+        syncLayout();
     }
 
     function load(role, seconds) {
@@ -252,6 +284,7 @@ function setupCutPreviews(options) {
             img.style.visibility = 'hidden';
         };
         img.src = url;
+        syncLayout();
     }
 
     function schedule(role, seconds) {
@@ -265,8 +298,8 @@ function setupCutPreviews(options) {
     }
 
     function refresh() {
-        const start = Number(startInput.value || 0);
-        const end = Number(endInput.value || 0);
+        const start = getStart();
+        const end = getEnd();
         const total = getDuration();
 
         if (Number.isFinite(start) && start > 0) {
@@ -288,8 +321,9 @@ function setupCutPreviews(options) {
         }
     }
 
-    startInput.addEventListener('input', refresh);
-    endInput.addEventListener('input', refresh);
+    trimInputs.forEach((input) => {
+        input.addEventListener('input', refresh);
+    });
     rotationSelect.addEventListener('change', () => {
         ['front', 'back'].forEach((role) => {
             const time = Number(boxes[role].dataset.time || 0);
@@ -311,22 +345,32 @@ export function showCut(options) {
         const dlg = createDialog(globalize.translate('CutVideo'));
 
         const durationText = duration > 0 ?
-            globalize.translate('VideoToolsDuration', Math.round(duration)) :
+            globalize.translate('VideoToolsDuration', formatDuration(duration)) :
             '';
 
         dlg.innerHTML += globalize.translateHtml(`
             <form class="formDialogContent" style="padding:1.5em 2em;">
                 <div class="fieldDescription" id="cutDurationText">${durationText}</div>
                 <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="txtStartTrim">${globalize.translate('VideoToolsStartTrim')}</label>
-                    <input is="emby-input" type="number" id="txtStartTrim" min="0" step="0.1" value="0" />
+                    <label class="inputLabel inputLabelUnfocused" for="txtStartMin">${globalize.translate('VideoToolsStartTrim')}</label>
+                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.35em;white-space:nowrap;margin-top:.25em;">
+                        <input type="number" class="emby-input" id="txtStartMin" min="0" step="1" value="0" style="width:5em;flex:0 0 5em;min-width:0;" />
+                        <span style="flex:0 0 auto;margin-right:.7em;color:#aaa;white-space:nowrap;">${globalize.translate('VideoToolsMinutes')}</span>
+                        <input type="number" class="emby-input" id="txtStartSec" min="0" max="59.9" step="0.1" value="0" style="width:5em;flex:0 0 5em;min-width:0;" />
+                        <span style="flex:0 0 auto;color:#aaa;white-space:nowrap;">${globalize.translate('VideoToolsSeconds')}</span>
+                    </div>
                 </div>
                 <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="txtEndTrim">${globalize.translate('VideoToolsEndTrim')}</label>
-                    <input is="emby-input" type="number" id="txtEndTrim" min="0" step="0.1" value="0" />
+                    <label class="inputLabel inputLabelUnfocused" for="txtEndMin">${globalize.translate('VideoToolsEndTrim')}</label>
+                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.35em;white-space:nowrap;margin-top:.25em;">
+                        <input type="number" class="emby-input" id="txtEndMin" min="0" step="1" value="0" style="width:5em;flex:0 0 5em;min-width:0;" />
+                        <span style="flex:0 0 auto;margin-right:.7em;color:#aaa;white-space:nowrap;">${globalize.translate('VideoToolsMinutes')}</span>
+                        <input type="number" class="emby-input" id="txtEndSec" min="0" max="59.9" step="0.1" value="0" style="width:5em;flex:0 0 5em;min-width:0;" />
+                        <span style="flex:0 0 auto;color:#aaa;white-space:nowrap;">${globalize.translate('VideoToolsSeconds')}</span>
+                    </div>
                 </div>
-                <div id="cutPreviews" style="display:flex;gap:.75em;margin:.25em 0 .75em;">
-                    <div id="cutPreviewFront" style="display:none;flex:1 1 0;min-width:0;">
+                <div id="cutPreviews" style="display:none;grid-template-columns:1fr 1fr;gap:.75em;margin:.25em 0 .75em;">
+                    <div id="cutPreviewFront" style="display:none;min-width:0;">
                         <div class="fieldDescription" style="margin:0 0 .3em;">${globalize.translate('VideoToolsPreviewFront')}</div>
                         <div style="position:relative;background:#000;border-radius:4px;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
                             <img alt="" style="max-width:100%;max-height:100%;display:block;" />
@@ -334,7 +378,7 @@ export function showCut(options) {
                         </div>
                         <div class="cutPreviewTime fieldDescription" style="margin:.2em 0 0;"></div>
                     </div>
-                    <div id="cutPreviewBack" style="display:none;flex:1 1 0;min-width:0;">
+                    <div id="cutPreviewBack" style="display:none;min-width:0;">
                         <div class="fieldDescription" style="margin:0 0 .3em;">${globalize.translate('VideoToolsPreviewBack')}</div>
                         <div style="position:relative;background:#000;border-radius:4px;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
                             <img alt="" style="max-width:100%;max-height:100%;display:block;" />
@@ -362,11 +406,32 @@ export function showCut(options) {
 
         attachCancel(dlg);
 
+        const trimInputs = [
+            dlg.querySelector('#txtStartMin'),
+            dlg.querySelector('#txtStartSec'),
+            dlg.querySelector('#txtEndMin'),
+            dlg.querySelector('#txtEndSec')
+        ];
+
+        const readTrim = (minId, secId) => {
+            const minutes = Number(dlg.querySelector(minId).value || 0);
+            const seconds = Number(dlg.querySelector(secId).value || 0);
+            const m = Number.isFinite(minutes) ? minutes : 0;
+            const s = Number.isFinite(seconds) ? seconds : 0;
+            return (m * 60) + s;
+        };
+
+        const getStart = () => readTrim('#txtStartMin', '#txtStartSec');
+        const getEnd = () => readTrim('#txtEndMin', '#txtEndSec');
+
         const previews = setupCutPreviews({
             dlg: dlg,
             apiClient: apiClient,
             itemId: options.itemId,
-            getDuration: () => duration
+            getDuration: () => duration,
+            getStart: getStart,
+            getEnd: getEnd,
+            trimInputs: trimInputs
         });
 
         if (!Number.isFinite(duration) || duration <= 0) {
@@ -376,7 +441,7 @@ export function showCut(options) {
                     duration = item.RunTimeTicks / 10000000;
                     const text = dlg.querySelector('#cutDurationText');
                     if (text) {
-                        text.textContent = globalize.translate('VideoToolsDuration', Math.round(duration));
+                        text.textContent = globalize.translate('VideoToolsDuration', formatDuration(duration));
                     }
                     previews.refresh();
                 }
@@ -388,8 +453,8 @@ export function showCut(options) {
         dlg.querySelector('form').addEventListener('submit', (e) => {
             e.preventDefault();
 
-            const startSeconds = Number(dlg.querySelector('#txtStartTrim').value || 0);
-            const endSeconds = Number(dlg.querySelector('#txtEndTrim').value || 0);
+            const startSeconds = getStart();
+            const endSeconds = getEnd();
             const rotation = Number(dlg.querySelector('#selectRotation').value || 0);
 
             if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)
