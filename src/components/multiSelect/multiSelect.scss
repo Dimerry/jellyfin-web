@@ -43,8 +43,14 @@
     margin-left: auto;
 }
 
-// While selecting, cards only allow vertical panning: horizontal drags become paint strokes
-// instead of scrolling the grid.
+// While selecting, cards in a vertical grid only allow vertical panning: horizontal drags
+// become paint strokes instead of scrolling the grid.
 body.multiSelectActive .card {
     touch-action: pan-y pinch-zoom;
+}
+
+// Cards inside a horizontal scroller (search results, collections) keep native horizontal
+// panning, otherwise the user cannot reach the off-screen cards while selecting.
+body.multiSelectActive [is="emby-scroller"]:not([data-horizontal="false"]) .card {
+    touch-action: pan-x pan-y pinch-zoom;
 }

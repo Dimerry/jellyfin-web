@@ -182,6 +182,16 @@ function setCardChecked(card, checked) {
 }
 
 /**
+ * Whether the card lives in a horizontally scrolling container (search rows, collections).
+ * @param {HTMLElement} card The card element.
+ * @returns {boolean} Whether horizontal panning is the primary gesture there.
+ */
+function isInHorizontalScroller(card) {
+    const scroller = card.closest('[is="emby-scroller"]');
+    return scroller !== null && scroller.getAttribute('data-horizontal') !== 'false';
+}
+
+/**
  * Starts a drag paint gesture when the pointer goes down on a card in selection mode.
  * Moving over other cards selects (or deselects) them like a brush.
  * A mostly vertical touch swipe is left alone so the grid can still be scrolled.
@@ -198,6 +208,13 @@ function onPaintPointerDown(e) {
 
     const card = dom.parentWithClass(e.target, 'card');
     if (!card) {
+        return;
+    }
+
+    // Cards inside a horizontal scroller (search results, collections) need horizontal panning
+    // to reach the off-screen cards. Painting there would cancel the selection instead of
+    // letting the user scroll, so only vertical grids get the brush gesture.
+    if (isInHorizontalScroller(card)) {
         return;
     }
 
