@@ -1,7 +1,7 @@
 # Jellyfin Web 魔改版（前端）
 
 > **这是 [jellyfin/jellyfin-web](https://github.com/jellyfin/jellyfin-web) 的个人 fork，不是官方版本。**
-> 所有改动都在 `videotools` 分支上，配套服务端：[Dimerry/jellyfin](https://github.com/Dimerry/jellyfin)（也不过是给上游加了 `/VideoTools` 接口）。
+> 所有改动都在 `videotools-12.4` 分支上，配套服务端：[Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools)（也不过是给上游加了 `/VideoTools` 接口）。
 
 一句话概括：让 Jellyfin 网页版能**直接转码压缩 / 掐头去尾（带预览）**、**视频与图片旋转**，带**任务队列页面**、**触屏拖动多选、web shift多选**、**按文件大小、比特率排序**。
 
@@ -22,12 +22,14 @@
 **转码**
 
 - 默认 H.265 / 1080p / 3000 kbps，可选 AV1、4K。
+- 分辨率是「限制分辨率」：超过所选分辨率的视频会缩小，较小的视频不会放大（只缩不放）。编码器自动选择，下拉里不再标注具体编码器后缀。
 - 单条走 `/VideoTools/{id}/Transcode`，多选走批量接口，提交后 toast 提示「已加入 N 个任务 / 跳过 M 个」。
+- 修复：从多选菜单对**单个**视频发起转码时之前会失败，现在正常入队。
 
 **剪辑**
 
-- 起止时间支持 0 和小数秒。
-- **前后两帧实时预览**：调整时间或旋转角度后 400ms 防抖请求 `GET /VideoTools/{id}/Frame`，两个 16:9 预览框并排显示（前/后各一帧），带过期请求丢弃，避免乱序覆盖。
+- 起止时间支持 0 和小数秒；掐头 / 去尾拆成「分 + 秒」两个输入框，视频时长按「x小时x分x秒」显示。
+- **前后两帧实时预览**：调整时间或旋转角度后 400ms 防抖请求 `GET /VideoTools/{id}/Frame`，两个 16:9 预览框并排显示（「保留的第一帧 / 保留的最后一帧」），带过期请求丢弃，避免乱序覆盖；只显示一个预览时两个框保持同样大小。
 - **视频旋转**：旋转下拉（逆时针 0° / 90° / 180° / 270°），选了预览会立刻按旋转后的方向重新抽帧，所见即所得。
   后端用 `-display_rotation` + `-c copy` 实现，不重编码、无损、秒完成。
 
@@ -57,6 +59,7 @@
 
 - 各类型搜索结果都加上 `Folder` 类型。
 - 文件夹结果固定排在**第一行**，无图时用内置文件夹图标占位。
+- 搜索结果行在重新渲染 / 重新挂载后**保持滚动位置**；多选模式下仍可横向拖动平移，不会被误判成涂抹选择。
 
 ### 8. 多选增强 — `src/components/multiSelect/multiSelect.js`
 
@@ -92,7 +95,7 @@ dotnet run --project Jellyfin.Server -c Release -- \
   --webdir /path/to/jellyfin-web/dist
 ```
 
-> 这些按钮只是界面，接口在配套服务端 [Dimerry/jellyfin](https://github.com/Dimerry/jellyfin) 的 `videotools` 分支上；只跑官方服务端会得到 404。
+> 这些按钮只是界面，接口在配套服务端 [Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools) 的 `videotools-12.4` 分支上；只跑官方服务端会得到 404。
 
 ---
 
