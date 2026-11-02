@@ -164,9 +164,12 @@ export function showTranscode(options) {
                 return;
             }
 
+            // Callers that select items from the multi-select menu only pass itemIds, so
+            // options.itemId is undefined there and produced a "VideoTools/undefined/Transcode"
+            // request. Use the resolved list for the single-item case too.
             startJob(
                 apiClient,
-                apiClient.getUrl(`VideoTools/${options.itemId}/Transcode`, params),
+                apiClient.getUrl(`VideoTools/${itemIds[0]}/Transcode`, params),
                 globalize.translate('VideoToolsStarted')
             ).then(resolve, (err) => {
                 console.error('[videotools] transcode failed', err);
