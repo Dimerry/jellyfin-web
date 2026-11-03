@@ -1961,7 +1961,7 @@
     "VideoToolsBatchQueuedSkipped": "Queued {0} job(s), skipped {1}",
     "VideoToolsBitrate": "Bitrate (kbps)",
     "VideoToolsInterpolate": "AI frame interpolation to 30 fps",
-    "VideoToolsInterpolateHint": "Only applies to videos below 23 fps (old recordings, legacy animation, ...): motion-compensated interpolation to 30 fps for visibly smoother motion. Slow; higher frame rate videos are left untouched.",
+    "VideoToolsInterpolateHint": "This video is {0} fps: motion-compensated interpolation to 30 fps makes motion visibly smoother. Slow, so it is off by default.",
     "VideoToolsCanceledToast": "Task canceled.",
     "VideoToolsClearFinished": "Clear completed",
     "VideoToolsCodec": "Codec",

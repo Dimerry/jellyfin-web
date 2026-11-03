@@ -129,6 +129,30 @@ export function showTranscode(options) {
 
         attachCancel(dlg);
 
+        // AI interpolation only helps low-frame-rate sources; the server ignores the flag above
+        // 23 fps anyway. Fetch the item and only show the option when the source qualifies, so
+        // high-frame-rate sources do not offer a checkbox that would silently do nothing.
+        const interpolateContainer = dlg.querySelector('#chkInterpolate').closest('.checkboxContainer');
+        interpolateContainer.style.display = 'none';
+        if (!isBatch && itemIds.length === 1) {
+            apiClient.getItem(apiClient.getCurrentUserId(), itemIds[0]).then((item) => {
+                const stream = (item?.MediaStreams || []).find((s) => s.Type === 'Video');
+                let rate = 0;
+                if (stream) {
+                    rate = Number(stream.AverageFrameRate || stream.RealFrameRate) || 0;
+                }
+                if (rate > 0 && rate < 23) {
+                    interpolateContainer.style.display = '';
+                    const hint = interpolateContainer.querySelector('.fieldDescription');
+                    if (hint) {
+                        hint.textContent = globalize.translate('VideoToolsInterpolateHint', rate.toFixed(1));
+                    }
+                }
+            }).catch(() => {
+                // Without media info the option stays hidden; the server still honors the flag.
+            });
+        }
+
         dlg.querySelector('form').addEventListener('submit', (e) => {
             e.preventDefault();
 
