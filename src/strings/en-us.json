@@ -1960,6 +1960,8 @@
     "VideoToolsBatchQueued": "Queued {0} transcode job(s)",
     "VideoToolsBatchQueuedSkipped": "Queued {0} job(s), skipped {1}",
     "VideoToolsBitrate": "Bitrate (kbps)",
+    "VideoToolsInterpolate": "AI frame interpolation to 30 fps",
+    "VideoToolsInterpolateHint": "Only applies to videos below 23 fps (old recordings, legacy animation, ...): motion-compensated interpolation to 30 fps for visibly smoother motion. Slow; higher frame rate videos are left untouched.",
     "VideoToolsCanceledToast": "Task canceled.",
     "VideoToolsClearFinished": "Clear completed",
     "VideoToolsCodec": "Codec",

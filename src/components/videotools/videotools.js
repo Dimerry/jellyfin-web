@@ -111,6 +111,13 @@ export function showTranscode(options) {
                     <label class="inputLabel inputLabelUnfocused" for="txtBitrate">${globalize.translate('VideoToolsBitrate')}</label>
                     <input is="emby-input" type="number" id="txtBitrate" min="100" max="200000" step="100" value="3000" />
                 </div>
+                <div class="checkboxContainer">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="chkInterpolate" />
+                        <span>${globalize.translate('VideoToolsInterpolate')}</span>
+                    </label>
+                    <div class="fieldDescription">${globalize.translate('VideoToolsInterpolateHint')}</div>
+                </div>
                 ${isBatch ? `<div class="fieldDescription">${globalize.translate('VideoToolsBatchHint', itemIds.length)}</div>` : ''}
                 <div class="fieldDescription">${globalize.translate('VideoToolsTranscodeHint')}</div>
                 <div style="margin-top:2em;">
@@ -128,6 +135,7 @@ export function showTranscode(options) {
             const codec = dlg.querySelector('#selectCodec').value;
             const resolution = dlg.querySelector('#selectResolution').value;
             const bitrate = Number(dlg.querySelector('#txtBitrate').value);
+            const interpolate = dlg.querySelector('#chkInterpolate').checked;
 
             if (!Number.isFinite(bitrate) || bitrate < 100 || bitrate > 200000) {
                 toast(globalize.translate('VideoToolsInvalidBitrate'));
@@ -139,7 +147,8 @@ export function showTranscode(options) {
             const params = {
                 codec: codec,
                 bitrateKbps: Math.round(bitrate),
-                resolution: resolution
+                resolution: resolution,
+                interpolate: interpolate
             };
 
             if (isBatch) {

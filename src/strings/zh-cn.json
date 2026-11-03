@@ -1920,6 +1920,8 @@
     "VideoToolsBatchQueued": "已加入 {0} 个转码任务",
     "VideoToolsBatchQueuedSkipped": "已加入 {0} 个转码任务，跳过 {1} 个",
     "VideoToolsBitrate": "码率 (kbps)",
+    "VideoToolsInterpolate": "AI 插帧至 30 帧",
+    "VideoToolsInterpolateHint": "仅对帧率低于 23fps 的低帧率视频生效（老录像、老动画等），用运动补偿插帧到 30fps，明显更流畅；速度较慢，高帧率视频勾了也不会变化。",
     "VideoToolsCanceledToast": "任务已取消。",
     "VideoToolsClearFinished": "清空已完成",
     "VideoToolsCodec": "编码",
