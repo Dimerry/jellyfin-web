@@ -92,7 +92,7 @@ export function showTranscode(options) {
         const dlg = createDialog(title);
 
         dlg.innerHTML += globalize.translateHtml(`
-            <form class="formDialogContent" style="padding:1.5em 2em;">
+            <form class="formDialogContent smoothScrollY" style="padding:1.5em 2em;">
                 <div class="selectContainer">
                     <label class="selectLabel" for="selectCodec">${globalize.translate('VideoToolsCodec')}</label>
                     <select is="emby-select" id="selectCodec" class="emby-select-withcolor emby-select">
@@ -378,7 +378,8 @@ function setupCutPreviews(options) {
  * Wires the cut crop preview. The frame is always rendered uncropped at source aspect ratio, then
  * a blue frame marks the part that survives and two dark panels shade the parts that are cut away.
  * Percentages (not pixels) are used for both the overlay and the ffmpeg crop, so the blue frame
- * matches the output even though the preview is scaled down.
+ * matches the output even though the preview is scaled down. With no crop value on either side,
+ * the whole preview block is hidden.
  */
 function setupCropPreview(options) {
     const { dlg, apiClient, itemId, getCrop } = options;
@@ -456,10 +457,32 @@ function setupCropPreview(options) {
         img.src = url;
     };
 
-    syncFrame();
-    load();
+    // No numeric crop on either side: keep the whole preview block out of the layout.
+    const syncVisibility = () => {
+        const crop = readCrop();
+        const visible = crop.left > 0 || crop.right > 0;
+        box.style.display = visible ? '' : 'none';
+        return visible;
+    };
 
-    return { refresh: () => syncFrame(), refreshFrame: () => load() };
+    // `shown` tracks whether the preview is on screen with a current frame, so re-showing it
+    // after both sides were cleared fetches a fresh frame instead of reusing a stale one.
+    let shown = false;
+    const applyPreview = (reloadFrame) => {
+        const visible = syncVisibility();
+        syncFrame();
+        if (visible && (reloadFrame || !shown)) {
+            load();
+        }
+        shown = visible;
+    };
+
+    applyPreview(false);
+
+    return {
+        refresh: () => applyPreview(false),
+        refreshFrame: () => applyPreview(true)
+    };
 }
 
 export function showCut(options) {
@@ -473,7 +496,7 @@ export function showCut(options) {
             '';
 
         dlg.innerHTML += globalize.translateHtml(`
-            <form class="formDialogContent" style="padding:1.5em 2em;">
+            <form class="formDialogContent smoothScrollY" style="padding:1.5em 2em 3em;">
                 <div class="fieldDescription" id="cutDurationText">${durationText}</div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtStartMin">${globalize.translate('VideoToolsStartTrim')}</label>
@@ -511,17 +534,21 @@ export function showCut(options) {
                         <div class="cutPreviewTime fieldDescription" style="margin:.2em 0 0;"></div>
                     </div>
                 </div>
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="txtCropLeft">${globalize.translate('VideoToolsCropLeft')}</label>
-                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
-                        <input type="number" class="emby-input" id="txtCropLeft" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                <div class="inputContainer" style="display:flex;gap:1em;align-items:flex-start;">
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="inputLabel inputLabelUnfocused" for="txtCropLeft">${globalize.translate('VideoToolsCropLeft')}</label>
+                        <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
+                            <input type="number" class="emby-input" id="txtCropLeft" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                        </div>
                     </div>
-                    <label class="inputLabel inputLabelUnfocused" for="txtCropRight" style="margin-top:.75em;">${globalize.translate('VideoToolsCropRight')}</label>
-                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
-                        <input type="number" class="emby-input" id="txtCropRight" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="inputLabel inputLabelUnfocused" for="txtCropRight">${globalize.translate('VideoToolsCropRight')}</label>
+                        <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
+                            <input type="number" class="emby-input" id="txtCropRight" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                        </div>
                     </div>
                 </div>
-                <div id="cutCropPreview" style="margin:.25em 0 .75em;">
+                <div id="cutCropPreview" style="display:none;margin:.25em 0 .75em;">
                     <div class="fieldDescription" style="margin:0 0 .3em;">
                         ${globalize.translate('VideoToolsCropPreview')}
                         <span id="cutCropKept" style="margin-left:.5em;color:#4a9eff;"></span>
