@@ -374,6 +374,94 @@ function setupCutPreviews(options) {
     return { refresh };
 }
 
+/**
+ * Wires the cut crop preview. The frame is always rendered uncropped at source aspect ratio, then
+ * a blue frame marks the part that survives and two dark panels shade the parts that are cut away.
+ * Percentages (not pixels) are used for both the overlay and the ffmpeg crop, so the blue frame
+ * matches the output even though the preview is scaled down.
+ */
+function setupCropPreview(options) {
+    const { dlg, apiClient, itemId, getCrop } = options;
+    const box = dlg.querySelector('#cutCropPreview');
+    const img = box.querySelector('img');
+    const status = box.querySelector('.cutCropStatus');
+    const frame = box.querySelector('.cutCropFrame');
+    const leftShade = box.querySelector('.cutCropShadeLeft');
+    const rightShade = box.querySelector('.cutCropShadeRight');
+    const keptLabel = dlg.querySelector('#cutCropKept');
+    const rotationSelect = dlg.querySelector('#selectRotation');
+    const token = { value: 0 };
+
+    const clampPercent = (value) => {
+        if (!Number.isFinite(value) || value <= 0) {
+            return 0;
+        }
+
+        return Math.min(99, value);
+    };
+
+    const readCrop = () => {
+        const raw = getCrop();
+        const left = clampPercent(raw.left);
+        const right = clampPercent(raw.right);
+        const sum = left + right;
+        return {
+            left,
+            right,
+            // Two sides can each be legal but together exceed 100%; shrink them proportionally so
+            // the blue frame never collapses into nothing while the user is still typing.
+            leftFinal: sum > 99 ? Math.round((left * 99 / sum) * 100) / 100 : left,
+            rightFinal: sum > 99 ? Math.round((right * 99 / sum) * 100) / 100 : right,
+            kept: Math.max(0, 100 - Math.min(99, sum))
+        };
+    };
+
+    const syncFrame = () => {
+        const crop = readCrop();
+        frame.style.left = `${crop.leftFinal}%`;
+        frame.style.right = `${crop.rightFinal}%`;
+        leftShade.style.width = `${crop.leftFinal}%`;
+        rightShade.style.width = `${crop.rightFinal}%`;
+        if (keptLabel) {
+            keptLabel.textContent = globalize.translate('VideoToolsCropLeftKept', `${parseFloat(crop.kept.toFixed(1))}`);
+        }
+    };
+
+    const load = () => {
+        const current = ++token.value;
+        const time = options.getPreviewTime ? options.getPreviewTime() : 1;
+        status.textContent = globalize.translate('VideoToolsPreviewLoading');
+        status.style.display = '';
+        img.style.visibility = 'hidden';
+
+        // Uncropped frame: the blue frame is drawn over it, so the shaded areas stay visible.
+        const url = apiClient.getUrl(`VideoTools/${itemId}/Frame`, {
+            timeSeconds: Number(time || 0).toFixed(3),
+            maxWidth: 640,
+            rotation: Number(rotationSelect.value || 0),
+            ApiKey: apiClient.accessToken()
+        });
+
+        img.onload = () => {
+            if (current !== token.value) return;
+            status.style.display = 'none';
+            img.style.visibility = '';
+        };
+        img.onerror = () => {
+            if (current !== token.value) return;
+            status.textContent = globalize.translate('VideoToolsPreviewFailed');
+            status.style.display = '';
+            img.style.visibility = 'hidden';
+        };
+        img.src = url;
+    };
+
+    syncFrame();
+    load();
+
+    return { refresh: () => syncFrame(), refreshFrame: () => load() };
+}
+
 export function showCut(options) {
     return new Promise((resolve) => {
         const apiClient = ServerConnections.getApiClient(options.serverId);
@@ -423,6 +511,29 @@ export function showCut(options) {
                         <div class="cutPreviewTime fieldDescription" style="margin:.2em 0 0;"></div>
                     </div>
                 </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="txtCropLeft">${globalize.translate('VideoToolsCropLeft')}</label>
+                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
+                        <input type="number" class="emby-input" id="txtCropLeft" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                    </div>
+                    <label class="inputLabel inputLabelUnfocused" for="txtCropRight" style="margin-top:.75em;">${globalize.translate('VideoToolsCropRight')}</label>
+                    <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:.5em;white-space:nowrap;margin-top:.25em;">
+                        <input type="number" class="emby-input" id="txtCropRight" min="0" max="99" step="0.5" value="0" style="width:5.5em;flex:0 0 5.5em;min-width:0;" />
+                    </div>
+                </div>
+                <div id="cutCropPreview" style="margin:.25em 0 .75em;">
+                    <div class="fieldDescription" style="margin:0 0 .3em;">
+                        ${globalize.translate('VideoToolsCropPreview')}
+                        <span id="cutCropKept" style="margin-left:.5em;color:#4a9eff;"></span>
+                    </div>
+                    <div style="position:relative;width:340px;max-width:100%;margin:0 auto;background:#000;border-radius:4px;overflow:hidden;" id="cutCropStage">
+                        <img alt="" style="width:100%;height:auto;display:block;visibility:hidden;" />
+                        <div class="cutCropShadeLeft" style="position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(0,0,0,.66);pointer-events:none;"></div>
+                        <div class="cutCropShadeRight" style="position:absolute;right:0;top:0;bottom:0;width:0;background:rgba(0,0,0,.66);pointer-events:none;"></div>
+                        <div class="cutCropFrame" style="position:absolute;top:0;bottom:0;left:0;right:0;border:2px solid #2f9bff;box-sizing:border-box;pointer-events:none;"></div>
+                        <div class="cutCropStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfcfcf;font-size:.8em;background:rgba(0,0,0,.35);"></div>
+                    </div>
+                </div>
                 <div class="selectContainer">
                     <label class="selectLabel" for="selectRotation">${globalize.translate('VideoToolsRotation')}</label>
                     <select is="emby-select" id="selectRotation" class="emby-select-withcolor emby-select">
@@ -433,6 +544,7 @@ export function showCut(options) {
                     </select>
                 </div>
                 <div class="fieldDescription">${globalize.translate('VideoToolsCutHint')}</div>
+                <div class="fieldDescription">${globalize.translate('VideoToolsCropHint')}</div>
                 <div style="margin-top:2em;">
                     <button is="emby-button" type="button" class="button-cancel block btnCancel" style="background-color:#424242;color:#ffffff;">${globalize.translate('ButtonCancel')}</button>
                     <button is="emby-button" type="submit" class="button-submit block btnStart">${globalize.translate('ButtonStart')}</button>
@@ -459,6 +571,33 @@ export function showCut(options) {
 
         const getStart = () => readTrim('#txtStartMin', '#txtStartSec');
         const getEnd = () => readTrim('#txtEndMin', '#txtEndSec');
+
+        const readCropSide = (id) => {
+            const raw = dlg.querySelector(id).value;
+            const value = raw === '' ? 0 : Number(raw);
+            return Number.isFinite(value) && value > 0 ? value : 0;
+        };
+        const getCrop = () => ({
+            left: readCropSide('#txtCropLeft'),
+            right: readCropSide('#txtCropRight')
+        });
+
+        const cropPreview = setupCropPreview({
+            dlg: dlg,
+            apiClient: apiClient,
+            itemId: options.itemId,
+            getCrop: getCrop,
+            // A frame from the first kept second: the crop is the same over the whole clip.
+            getPreviewTime: () => Math.max(0, getStart() + 0.5)
+        });
+
+        ['#txtCropLeft', '#txtCropRight'].forEach((id) => {
+            dlg.querySelector(id).addEventListener('input', () => cropPreview.refresh());
+        });
+        dlg.querySelector('#selectRotation').addEventListener('change', () => cropPreview.refreshFrame());
+        trimInputs.forEach((input) => {
+            input.addEventListener('change', () => cropPreview.refreshFrame());
+        });
 
         const previews = setupCutPreviews({
             dlg: dlg,
@@ -492,10 +631,17 @@ export function showCut(options) {
             const startSeconds = getStart();
             const endSeconds = getEnd();
             const rotation = Number(dlg.querySelector('#selectRotation').value || 0);
+            const crop = getCrop();
 
             if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)
                 || startSeconds < 0 || endSeconds < 0) {
                 toast(globalize.translate('VideoToolsInvalidNumber'));
+                return;
+            }
+
+            if (!Number.isFinite(crop.left) || !Number.isFinite(crop.right)
+                || crop.left >= 100 || crop.right >= 100 || crop.left + crop.right >= 100) {
+                toast(globalize.translate('VideoToolsCropInvalid'));
                 return;
             }
 
@@ -511,7 +657,9 @@ export function showCut(options) {
                 apiClient.getUrl(`VideoTools/${options.itemId}/Cut`, {
                     startSeconds: startSeconds,
                     endSeconds: endSeconds,
-                    rotation: rotation
+                    rotation: rotation,
+                    cropLeft: crop.left,
+                    cropRight: crop.right
                 }),
                 globalize.translate('VideoToolsStarted')
             ).then(resolve, (err) => {
