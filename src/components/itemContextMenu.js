@@ -2,6 +2,8 @@ import { BaseItemKind } from '@jellyfin/sdk/lib/generated-client/models/base-ite
 import { getLibraryApi } from '@jellyfin/sdk/lib/utils/api/library-api';
 
 import { AppFeature } from 'constants/appFeature';
+import { EventType } from 'constants/eventType';
+import Events from 'utils/events';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
 
 import browser from '../scripts/browser';
@@ -608,6 +610,10 @@ function executeCommand(item, id, options) {
                         toast(globalize.translate('RotateImageFailed'));
                     } else {
                         toast(globalize.translate('RotateImageSuccess'));
+
+                        // The pixels on disk have changed; the list and detail pages still show
+                        // the cached image until something tells them to re-render.
+                        Events.trigger(document, EventType.REFRESH_NEEDED);
                     }
                 }, () => {
                     toast(globalize.translate('RotateImageFailed'));
