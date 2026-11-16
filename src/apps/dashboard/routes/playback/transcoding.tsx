@@ -403,6 +403,42 @@ export const Component = () => {
                                 </FormGroup>
                             </FormControl>
 
+                            <FormControl variant='standard' fullWidth>
+                                <Typography variant='h3'>{globalize.translate('LabelVideoRateControl')}</Typography>
+                                <FormHelperText>{globalize.translate('LabelVideoRateControlHelp')}</FormHelperText>
+                                <Stack direction='row' spacing={2}>
+                                    <TextField
+                                        select
+                                        name='VideoRateControlMode'
+                                        margin='normal'
+                                        value={config.VideoRateControlMode ?? 'bitrate'}
+                                        onChange={onConfigChange}
+                                        label={globalize.translate('LabelRateControlMode')}
+                                        sx={{ minWidth: 220 }}
+                                    >
+                                        <MenuItem value='quality'>{globalize.translate('RateControlQuality')}</MenuItem>
+                                        <MenuItem value='bitrate'>{globalize.translate('RateControlBitrate')}</MenuItem>
+                                    </TextField>
+                                    {config.VideoRateControlMode === 'quality' && (
+                                        <TextField
+                                            select
+                                            name='VideoQualityPreset'
+                                            margin='normal'
+                                            value={config.VideoQualityPreset ?? 'medium'}
+                                            onChange={onConfigChange}
+                                            label={globalize.translate('LabelQualityLevel')}
+                                            sx={{ minWidth: 220 }}
+                                        >
+                                            <MenuItem value='highest'>{globalize.translate('QualityHighest')}</MenuItem>
+                                            <MenuItem value='high'>{globalize.translate('QualityHigh')}</MenuItem>
+                                            <MenuItem value='medium'>{globalize.translate('QualityMedium')}</MenuItem>
+                                            <MenuItem value='low'>{globalize.translate('QualityLow')}</MenuItem>
+                                            <MenuItem value='lowest'>{globalize.translate('QualityLowest')}</MenuItem>
+                                        </TextField>
+                                    )}
+                                </Stack>
+                            </FormControl>
+
                             {(hardwareAccelType === 'qsv' || hardwareAccelType === 'vaapi') && (
                                 <>
                                     <FormControl>

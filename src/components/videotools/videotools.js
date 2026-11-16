@@ -101,13 +101,35 @@ export function showTranscode(options) {
                     </select>
                 </div>
                 <div class="selectContainer">
+                    <label class="selectLabel" for="selectEncoder">${globalize.translate('LabelVideoEncoder')}</label>
+                    <select is="emby-select" id="selectEncoder" class="emby-select-withcolor emby-select"></select>
+                    <div class="fieldDescription">${globalize.translate('LabelEncoderSelectionHelp')}</div>
+                </div>
+                <div class="selectContainer">
                     <label class="selectLabel" for="selectResolution">${globalize.translate('VideoToolsMaxResolution')}</label>
                     <select is="emby-select" id="selectResolution" class="emby-select-withcolor emby-select">
                         <option value="1080p" selected>1080p</option>
                         <option value="4k">4K (2160p)</option>
                     </select>
                 </div>
-                <div class="inputContainer">
+                <div class="selectContainer">
+                    <label class="selectLabel" for="selectRateControl">${globalize.translate('VideoToolsRateControl')}</label>
+                    <select is="emby-select" id="selectRateControl" class="emby-select-withcolor emby-select">
+                        <option value="quality" selected>${globalize.translate('RateControlQuality')}</option>
+                        <option value="bitrate">${globalize.translate('RateControlBitrate')}</option>
+                    </select>
+                </div>
+                <div class="selectContainer" id="qualityContainer">
+                    <label class="selectLabel" for="selectQuality">${globalize.translate('LabelQualityLevel')}</label>
+                    <select is="emby-select" id="selectQuality" class="emby-select-withcolor emby-select">
+                        <option value="highest">${globalize.translate('QualityHighest')}</option>
+                        <option value="high">${globalize.translate('QualityHigh')}</option>
+                        <option value="medium" selected>${globalize.translate('QualityMedium')}</option>
+                        <option value="low">${globalize.translate('QualityLow')}</option>
+                        <option value="lowest">${globalize.translate('QualityLowest')}</option>
+                    </select>
+                </div>
+                <div class="inputContainer" id="bitrateContainer" style="display:none;">
                     <label class="inputLabel inputLabelUnfocused" for="txtBitrate">${globalize.translate('VideoToolsBitrate')}</label>
                     <input is="emby-input" type="number" id="txtBitrate" min="100" max="200000" step="100" value="3000" />
                 </div>
@@ -128,6 +150,50 @@ export function showTranscode(options) {
         `);
 
         attachCancel(dlg);
+
+        // The two size controls are mutually exclusive: quality mode hides the bitrate field and
+        // bitrate mode hides the quality picker, so the dialog never asks for both.
+        const rateControl = dlg.querySelector('#selectRateControl');
+        const bitrateContainer = dlg.querySelector('#bitrateContainer');
+        const qualityContainer = dlg.querySelector('#qualityContainer');
+        rateControl.addEventListener('change', () => {
+            const isQuality = rateControl.value === 'quality';
+            bitrateContainer.style.display = isQuality ? 'none' : '';
+            qualityContainer.style.display = isQuality ? '' : 'none';
+        });
+
+        // Encoder choices follow the selected codec, grouping software first and then every
+        // hardware encoder. The server walks down this list on failure and always ends on the
+        // software encoder, so picking a hardware encoder can never leave the job without output.
+        const ENCODER_OPTIONS = {
+            h265: [
+                { value: 'auto', label: globalize.translate('EncoderAuto') },
+                { value: 'libx265', label: 'H.265 (software)' },
+                { value: 'hevc_qsv', label: 'H.265 (Intel QSV)' },
+                { value: 'hevc_nvenc', label: 'H.265 (NVIDIA NVENC)' },
+                { value: 'hevc_vaapi', label: 'H.265 (VA-API)' },
+                { value: 'hevc_amf', label: 'H.265 (AMD AMF)' }
+            ],
+            av1: [
+                { value: 'auto', label: globalize.translate('EncoderAuto') },
+                { value: 'libsvtav1', label: 'AV1 (software, SVT)' },
+                { value: 'av1_qsv', label: 'AV1 (Intel QSV)' },
+                { value: 'av1_nvenc', label: 'AV1 (NVIDIA NVENC)' },
+                { value: 'av1_vaapi', label: 'AV1 (VA-API)' },
+                { value: 'av1_amf', label: 'AV1 (AMD AMF)' }
+            ]
+        };
+
+        const codecSelect = dlg.querySelector('#selectCodec');
+        const encoderSelect = dlg.querySelector('#selectEncoder');
+        const fillEncoders = () => {
+            const choices = ENCODER_OPTIONS[codecSelect.value] || ENCODER_OPTIONS.h265;
+            encoderSelect.innerHTML = choices
+                .map(choice => `<option value="${choice.value}"${choice.value === 'auto' ? ' selected' : ''}>${choice.label}</option>`)
+                .join('');
+        };
+        fillEncoders();
+        codecSelect.addEventListener('change', fillEncoders);
 
         // AI interpolation only helps low-frame-rate sources; the server ignores the flag above
         // 23 fps anyway. Fetch the item and only show the option when the source qualifies, so
@@ -158,10 +224,13 @@ export function showTranscode(options) {
 
             const codec = dlg.querySelector('#selectCodec').value;
             const resolution = dlg.querySelector('#selectResolution').value;
+            const rateControlMode = dlg.querySelector('#selectRateControl').value;
+            const useQuality = rateControlMode === 'quality';
+            const qualityPreset = dlg.querySelector('#selectQuality').value;
             const bitrate = Number(dlg.querySelector('#txtBitrate').value);
             const interpolate = dlg.querySelector('#chkInterpolate').checked;
 
-            if (!Number.isFinite(bitrate) || bitrate < 100 || bitrate > 200000) {
+            if (!useQuality && (!Number.isFinite(bitrate) || bitrate < 100 || bitrate > 200000)) {
                 toast(globalize.translate('VideoToolsInvalidBitrate'));
                 return;
             }
@@ -170,10 +239,17 @@ export function showTranscode(options) {
 
             const params = {
                 codec: codec,
-                bitrateKbps: Math.round(bitrate),
                 resolution: resolution,
-                interpolate: interpolate
+                interpolate: interpolate,
+                rateControl: useQuality ? 'quality' : 'bitrate',
+                encoder: dlg.querySelector('#selectEncoder').value
             };
+
+            if (useQuality) {
+                params.quality = qualityPreset;
+            } else {
+                params.bitrateKbps = Math.round(bitrate);
+            }
 
             if (isBatch) {
                 apiClient.ajax({
