@@ -37,6 +37,8 @@ type VideoToolJob = {
     Codec?: string | null;
     Resolution?: string | null;
     BitrateKbps?: number | null;
+    UseQuality?: boolean;
+    Quality?: string | null;
     Encoder?: string | null;
     EncoderKind?: 'Hardware' | 'Software' | null;
     FallbackFrom?: string | null;
@@ -126,6 +128,15 @@ const getStatusColor = (status: VideoToolJob['Status']): 'default' | 'primary' |
 const getFormatLabel = (job: VideoToolJob) => {
     if (job.Kind === 'Cut') {
         return globalize.translate('CutVideo');
+    }
+
+    // Quality-mode jobs carry the preset instead of a bitrate: the encoder picks the rate itself,
+    // so a kbps figure would be meaningless.
+    if (job.UseQuality) {
+        const qualityKey = `Quality${(job.Quality || 'medium').charAt(0).toUpperCase()}${(job.Quality || 'medium').slice(1)}`;
+        return [job.Codec, job.Resolution, globalize.translate(qualityKey)]
+            .filter(Boolean)
+            .join(' · ');
     }
 
     return [job.Codec, job.Resolution, job.BitrateKbps ? `${job.BitrateKbps} kbps` : null]

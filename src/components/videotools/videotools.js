@@ -195,6 +195,38 @@ export function showTranscode(options) {
         fillEncoders();
         codecSelect.addEventListener('change', fillEncoders);
 
+        // Prefill the dialog from the stored VideoTools defaults (console → VideoTools →
+        // configure). Fire-and-forget: the dialog stays usable if the fetch fails, and anything
+        // the user already changed is not overwritten.
+        apiClient.getJSON(apiClient.getUrl('VideoTools/Defaults')).then((defaults) => {
+            const saved = defaults && defaults.Transcode;
+            if (!saved) {
+                return;
+            }
+            if (saved.Codec && ['h265', 'av1'].includes(saved.Codec)) {
+                codecSelect.value = saved.Codec;
+                fillEncoders();
+            }
+            if (saved.Encoder) {
+                encoderSelect.value = saved.Encoder;
+            }
+            if (saved.Resolution) {
+                dlg.querySelector('#selectResolution').value = saved.Resolution;
+            }
+            if (saved.RateControl) {
+                rateControl.value = saved.RateControl;
+                rateControl.dispatchEvent(new Event('change'));
+            }
+            if (saved.Quality) {
+                dlg.querySelector('#selectQuality').value = saved.Quality;
+            }
+            if (saved.BitrateKbps) {
+                dlg.querySelector('#txtBitrate').value = saved.BitrateKbps;
+            }
+        }).catch(() => {
+            // Defaults stay unreadable: keep the built-in fallbacks already rendered.
+        });
+
         // AI interpolation only helps low-frame-rate sources; the server ignores the flag above
         // 23 fps anyway. Fetch the item and only show the option when the source qualifies, so
         // high-frame-rate sources do not offer a checkbox that would silently do nothing.
