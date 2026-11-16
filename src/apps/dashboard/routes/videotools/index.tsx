@@ -55,6 +55,7 @@ type VideoToolsTranscodeDefaults = {
 };
 
 type VideoToolsCutDefaults = {
+    Codec: string;
     Encoder: string;
     RateControl: string;
     Quality: string;
@@ -296,12 +297,20 @@ const DefaultsDialog = ({ kind, defaults, onClose, onSaved, apiClient }: Default
     const [ draft, setDraft ] = useState(() => ({ ...source }));
     const [ isSaving, setIsSaving ] = useState(false);
 
+    // Defaults stored before the cut codec existed lack the field; seed it so the select binds.
+    useEffect(() => {
+        if (isCut && draft && !(draft as VideoToolsCutDefaults).Codec) {
+            setDraft((current) => ({ ...current, Codec: 'h265' }));
+        }
+    }, [ isCut, draft ]);
+
     const update = (key: string, value: string | number) => {
         setDraft((current) => ({ ...current, [key]: value }));
     };
 
     const selectedCodec = (draft as VideoToolsTranscodeDefaults)?.Codec;
-    const codecKey = isCut || selectedCodec !== 'av1' ? 'h265' : 'av1';
+    const cutCodec = isCut ? ((draft as VideoToolsCutDefaults)?.Codec ?? 'h265') : selectedCodec;
+    const codecKey = cutCodec === 'av1' ? 'av1' : 'h265';
     const encoderOptions = ENCODER_OPTIONS[codecKey] ?? ENCODER_OPTIONS.h265;
     const isQuality = draft?.RateControl === 'quality';
 
@@ -353,26 +362,27 @@ const DefaultsDialog = ({ kind, defaults, onClose, onSaved, apiClient }: Default
             <DialogContent>
                 <Stack spacing={2} mt={1}>
                     {!isCut && (
-                        <>
-                            <TextField
-                                select
-                                label={globalize.translate('VideoToolsCodec')}
-                                value={(draft as VideoToolsTranscodeDefaults).Codec}
-                                onChange={(e) => update('Codec', e.target.value)}
-                            >
-                                <MenuItem value='h265'>H.265</MenuItem>
-                                <MenuItem value='av1'>AV1</MenuItem>
-                            </TextField>
-                            <TextField
-                                select
-                                label={globalize.translate('VideoToolsMaxResolution')}
-                                value={(draft as VideoToolsTranscodeDefaults).Resolution}
-                                onChange={(e) => update('Resolution', e.target.value)}
-                            >
-                                <MenuItem value='1080p'>1080p</MenuItem>
-                                <MenuItem value='4k'>4K (2160p)</MenuItem>
-                            </TextField>
-                        </>
+                        <TextField
+                            select
+                            label={globalize.translate('VideoToolsCodec')}
+                            value={(draft as VideoToolsTranscodeDefaults).Codec}
+                            onChange={(e) => update('Codec', e.target.value)}
+                        >
+                            <MenuItem value='h265'>H.265</MenuItem>
+                            <MenuItem value='av1'>AV1</MenuItem>
+                        </TextField>
+                    )}
+
+                    {isCut && (
+                        <TextField
+                            select
+                            label={globalize.translate('VideoToolsCodec')}
+                            value={(draft as VideoToolsCutDefaults).Codec ?? 'h265'}
+                            onChange={(e) => update('Codec', e.target.value)}
+                        >
+                            <MenuItem value='h265'>H.265</MenuItem>
+                            <MenuItem value='av1'>AV1</MenuItem>
+                        </TextField>
                     )}
 
                     <TextField
@@ -385,6 +395,18 @@ const DefaultsDialog = ({ kind, defaults, onClose, onSaved, apiClient }: Default
                             <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
                         ))}
                     </TextField>
+
+                    {!isCut && (
+                        <TextField
+                            select
+                            label={globalize.translate('VideoToolsMaxResolution')}
+                            value={(draft as VideoToolsTranscodeDefaults).Resolution}
+                            onChange={(e) => update('Resolution', e.target.value)}
+                        >
+                            <MenuItem value='1080p'>1080p</MenuItem>
+                            <MenuItem value='4k'>4K (2160p)</MenuItem>
+                        </TextField>
+                    )}
 
                     <TextField
                         select
@@ -625,6 +647,8 @@ export const Component = () => {
             <Box className='content-primary'>
                 <Box className='readOnlyContent'>
                     <Stack spacing={2} mt={2}>
+                        <Typography variant='h5'>{globalize.translate('TranscodeQueue')}</Typography>
+
                         <Box>
                             <Stack direction='row' alignItems='center' justifyContent='space-between' spacing={2}>
                                 <Typography>{globalize.translate('VideoToolsDefaultTranscodeConfig')}</Typography>
@@ -640,26 +664,20 @@ export const Component = () => {
                             </Stack>
                         </Box>
 
-                        <Box>
-                            <Stack direction='row' alignItems='flex-start' justifyContent='space-between' spacing={2}>
-                                <Box>
-                                    <Typography variant='h5'>{globalize.translate('TranscodeQueue')}</Typography>
-                                    <Typography variant='body2' color='text.secondary'>
-                                        {globalize.translate('VideoToolsQueueHint')}
-                                    </Typography>
-                                </Box>
-                                <Button
-                                    variant='outlined'
-                                    size='small'
-                                    onClick={handleClearFinished}
-                                    disabled={isClearing || finishedCount === 0}
-                                >
-                                    {globalize.translate('VideoToolsClearFinished')}
-                                </Button>
-                            </Stack>
-                        </Box>
-
                         <Typography variant='h6'>{globalize.translate('VideoToolsActiveJobs')}</Typography>
+                        <Stack direction='row' alignItems='center' justifyContent='space-between' spacing={2}>
+                            <Typography variant='body2' color='text.secondary'>
+                                {globalize.translate('VideoToolsQueueHint')}
+                            </Typography>
+                            <Button
+                                variant='outlined'
+                                size='small'
+                                onClick={handleClearFinished}
+                                disabled={isClearing || finishedCount === 0}
+                            >
+                                {globalize.translate('VideoToolsClearFinished')}
+                            </Button>
+                        </Stack>
                         {activeContent}
 
                         {recentJobs.length > 0 && (
