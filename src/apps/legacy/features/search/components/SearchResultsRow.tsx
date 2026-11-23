@@ -39,6 +39,25 @@ type ScrollerElement = HTMLDivElement & {
  */
 const scrollPositions = new Map<string, number>();
 
+// Rows are re-created on every search, so the cache is bounded to keep it from
+// growing without limit: the least recently used offset is dropped first.
+const MAX_SCROLL_POSITIONS = 64;
+
+const rememberScrollPosition = (key: string, position: number) => {
+    // Re-inserting moves the entry to the end so it counts as recently used.
+    scrollPositions.delete(key);
+    scrollPositions.set(key, position);
+
+    while (scrollPositions.size > MAX_SCROLL_POSITIONS) {
+        const oldest = scrollPositions.keys().next();
+        if (oldest.done) {
+            break;
+        }
+
+        scrollPositions.delete(oldest.value);
+    }
+};
+
 const SearchResultsRow: FC<SearchResultsRowProps> = ({ title, items = [], cardOptions = {} }) => {
     const element = useRef<HTMLDivElement>(null);
     const lastSignature = useRef<string>();
@@ -72,7 +91,7 @@ const SearchResultsRow: FC<SearchResultsRowProps> = ({ title, items = [], cardOp
         const rememberPosition = () => {
             const pos = scrollerEl.scroller?.getScrollPosition?.();
             if (typeof pos === 'number') {
-                scrollPositions.set(key, pos);
+                rememberScrollPosition(key, pos);
             }
         };
 
