@@ -1,12 +1,9 @@
-# Jellyfin Web 魔改版（前端）
+# Jellyfin-videotools Web（前端）
 
 > **这是 [jellyfin/jellyfin-web](https://github.com/jellyfin/jellyfin-web) 的个人 fork，不是官方版本。**
-> 所有改动都在 `videotools-12.4` 分支上，配套服务端：[Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools)（也不过是给上游加了 `/VideoTools` 接口）。
-
-一句话概括：让 Jellyfin 网页版能**直接转码压缩 / 掐头去尾（带预览）**、**视频与图片旋转**，带**任务队列页面**、**触屏拖动多选、web shift多选**、**按文件大小、比特率排序**。
+> 不适用于官方服务端端，配套服务端及详细说明：[Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools)。
 
 > 🤖 **本仓库全部代码由 AI 编写。**
-> 作者是一位看不懂代码的天才程序员——需求、交互、审美和验收是他，敲键盘的是 AI。
 
 ---
 
@@ -35,13 +32,7 @@
   后端用 `-display_rotation` + `-c copy` 实现，不重编码、无损、秒完成。
 - 手机端适配：弹窗内容可滚动（修溢出）、左右裁切输入并排一行。
 
-### 3. 图片旋转 — `src/components/itemContextMenu.js`、`src/components/multiSelect/multiSelect.js`
-
-- 单张：图片右键菜单里 **「逆旋 90°」**，点一下原地旋转并刷新缩略图。
-- 批量：多选若干图片后，右上角菜单 **「逆旋 90°」**，一次旋转所有选中图片，完成后 toast 汇报「已旋转 N 张 / M 张失败」。
-- 走后端 `POST /ImageTools/{id}/Rotate` 与 `POST /ImageTools/Rotate`（批量），用 ffmpeg 原地重写文件，不改变像素质量策略（JPEG 质量 2、PNG 无损）。
-
-### 4. 视频工具页（转码队列） — `src/apps/dashboard/routes/videotools/index.tsx`
+### 3. 视频工具页（转码队列） — `src/apps/dashboard/routes/videotools/index.tsx`
 
 控制台侧边栏新增「视频工具」，路由 `/dashboard/videotools`：
 
@@ -49,6 +40,13 @@
 - 行内操作：「取消」（排队中或运行中）、「重试」（仅失败）、「播放」（打开已完成任务的输出文件，关闭对话框即停止播放）。
 - 「当前队列」标题下方显示「文件转码一次只运行一个任务」提示和「清空已完成」按钮。
 - **默认设置**：「视频工具」标题下两组「配置」按钮，分别打开转码 / 剪辑默认设置对话框（编码、编码器、限制分辨率、码控、质量档位 / 码率），存到服务端；从媒体库直接入队（不弹对话框）时生效。界面全部中文化。
+
+### 4. 图片旋转 — `src/components/itemContextMenu.js`、`src/components/multiSelect/multiSelect.js`
+
+- 单张：图片右键菜单里 **「逆旋 90°」**，点一下原地旋转并刷新缩略图。
+- 批量：多选若干图片后，右上角菜单 **「逆旋 90°」**，一次旋转所有选中图片，完成后 toast 汇报「已旋转 N 张 / M 张失败」。
+- 走后端 `POST /ImageTools/{id}/Rotate` 与 `POST /ImageTools/Rotate`（批量），用 ffmpeg 原地重写文件，不改变像素质量策略（JPEG 质量 2、PNG 无损）。
+
 ### 5. 列表排序 — `src/apps/modern/features/libraries/components/SortButton.tsx`、`src/apps/legacy/controllers/list.js`
 
 排序菜单新增 **「比特率」「文件大小」**（服务端加了 `Size` 排序字段）。
@@ -67,14 +65,21 @@
 
 网页版所有列表共用：
 
-- **Shift 连选**：多选模式下 `Shift + 点击`，从上次点过的卡片到当前卡片之间的所有可见卡片一次性选中。
+- **键盘Shift 连选**：多选模式下 `Shift + 点击`，从上次点过的卡片到当前卡片之间的所有可见卡片一次性选中。
 - **拖动涂抹选择**（鼠标 + 触摸）：多选模式下按住并在卡片上拖过，沿途卡片全部选上（起始卡已选中则反向：全部取消）。
   - 触摸时竖直拖动仍然是滚动列表，只有横向拖动才涂抹（多选期间 `touch-action: pan-y pinch-zoom`）。
   - 涂抹结束会吞掉浏览器补发的 click，避免刚选上又被反选。
 - **离开当前界面（返回上一页）会自动取消多选**：多选状态绑定在发起多选的列表容器上，容器卸载即清空，不会出现"回到上一页后点文件夹只是被勾上、进不去"的怪状态。
 - 顺带修了选中面板已脱离 DOM 时 `hideSelections()` 抛异常、以及「长按增加计数但不显示勾选标记」的状态不同步问题。
 
-### 9. 国际化 — `src/strings/en-us.json`、`zh-cn.json`
+### 9.出站代理 - 
+
+- KnownProxies「代理服务器地址」更名「可信代理服务器（入站）」
+- 出站代理进 UI。设置 → 网络 → 新区块「出站代理（刮削 / 图片 / 插件）」：
+  - 出站代理：如 http://192.168.1.199:921，留空直连
+  - 不走代理的地址：主机名 / IP / CIDR 子网（192.168.1.0/24）/ 通配符域名（*.example.com），逗号分隔
+
+### 10.国际化 — `src/strings/en-us.json`、`zh-cn.json`
 
 上面所有新增文案都有中英文两套。
 
@@ -103,7 +108,8 @@ dotnet run --project Jellyfin.Server -c Release -- \
 
 ## 三、免责声明
 
-- 个人自用 fork，**没有针对这些新功能做端到端测试**（只有多选模块有 6 个单元测试），代码质量按"能跑就行"标准。
+- 个人自用 fork，**没有针对这些新功能做端到端测试**，代码质量按"能跑就行"标准。
+- 支持官方客户端。
 - 转码/剪辑会改动你媒体库里的文件，请先小范围试。
 - 与 Jellyfin 官方无关，问题不要提到上游。
 
