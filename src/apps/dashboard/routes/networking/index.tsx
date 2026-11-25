@@ -53,6 +53,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         LocalNetworkSubnets: splitString(data.LocalNetworkSubnets?.toString()),
         LocalNetworkAddresses: splitString(data.LocalNetworkAddresses?.toString()),
         KnownProxies: splitString(data.KnownProxies?.toString()),
+        OutboundProxy: data.OutboundProxy?.toString().trim() || '',
+        OutboundNoProxy: splitString(data.OutboundNoProxy?.toString()),
         RemoteIPFilter: splitString(data.RemoteIPFilter?.toString()),
         IsRemoteIPFilterBlacklist: data.IsRemoteIPFilterBlacklist?.toString() === 'blacklist'
     };
@@ -207,6 +209,26 @@ export const Component = () => {
                                     label={globalize.translate('LabelKnownProxies')}
                                     helperText={globalize.translate('KnownProxiesHelp')}
                                     defaultValue={config.KnownProxies?.join(', ') || ''}
+                                />
+                            </Stack>
+
+                            <Stack spacing={3}>
+                                <Typography variant='h2'>{globalize.translate('HeaderOutboundProxy')}</Typography>
+
+                                <TextField
+                                    name='OutboundProxy'
+                                    label={globalize.translate('LabelOutboundProxy')}
+                                    helperText={globalize.translate('OutboundProxyHelp')}
+                                    defaultValue={config.OutboundProxy || ''}
+                                    placeholder='http://192.168.1.1:921'
+                                />
+
+                                <TextField
+                                    name='OutboundNoProxy'
+                                    label={globalize.translate('LabelOutboundNoProxy')}
+                                    helperText={globalize.translate('OutboundNoProxyHelp')}
+                                    defaultValue={config.OutboundNoProxy?.join(', ') || ''}
+                                    placeholder='192.168.1.0/24, *.example.com'
                                 />
                             </Stack>
 
