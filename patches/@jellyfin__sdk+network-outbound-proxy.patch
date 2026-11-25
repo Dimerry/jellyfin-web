@@ -1,0 +1,16 @@
+# 手工补丁（2026-11-25）：@jellyfin/sdk 1.0.2 的 NetworkConfiguration 模型
+# 增加 OutboundProxy / OutboundNoProxy 字段，配合 jellyfin fork 的出站代理功能。
+# npm ci 后需重新应用：patch -p0 < patches/@jellyfin__sdk+network-outbound-proxy.patch
+# （或直接在 node_modules 里手工加这两行）
+
+在 node_modules/@jellyfin/sdk/lib/generated-client/models/network-configuration.d.ts
+中 `'KnownProxies'?: Array<string>;` 之后插入：
+
+    /**
+     * Gets or sets the outbound proxy URI (e.g. http://host:port) used for external HTTP requests. Empty = no proxy.
+     */
+    'OutboundProxy'?: string;
+    /**
+     * Gets or sets the hosts, IP addresses, CIDR subnets or wildcard domains that bypass the outbound proxy.
+     */
+    'OutboundNoProxy'?: Array<string>;
