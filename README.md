@@ -1,7 +1,7 @@
 # Jellyfin-videotools Web（前端）
 
 > **这是 [jellyfin/jellyfin-web](https://github.com/jellyfin/jellyfin-web) 的个人 fork，不是官方版本。**
-> 不适用于官方服务端端，配套服务端及详细说明：[Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools)。
+> 不适用于官方服务端端，无需单独安装，配套服务端及详细说明：[Dimerry/jellyfin-videotools](https://github.com/Dimerry/jellyfin-videotools)。
 
 > 🤖 **本仓库全部代码由 AI 编写。**
 
